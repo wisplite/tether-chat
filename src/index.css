@@ -13,6 +13,10 @@
     rgba(109, 113, 120, 0.2),  /* light: #6d7178 at 50% */
     rgba(200, 203, 208, 0.2)   /* dark:  #c8cbd0 at 50% */
   );
+  --color-foreground-muted-hover:light-dark(
+    rgba(109, 113, 120, 0.1),  /* light: #6d7178 at 50% */
+    rgba(200, 203, 208, 0.1)   /* dark:  #c8cbd0 at 50% */
+  );
   --color-success: light-dark(#1cc990, #41a584);
   --color-error: light-dark(#c91c1c, #b96c6c);
   --color-warning: light-dark(#e3a236, #be995a);

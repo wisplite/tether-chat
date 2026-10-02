@@ -29,6 +29,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />} />
           <Route element={<ChatSidebars />}>
             <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/:channelId" element={<Chat />} />
           </Route>
         </Routes>
       </BrowserRouter>

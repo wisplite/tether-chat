@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"net/http"
+
+	dicebear "github.com/dicebear/dicebear-go/v10"
+	"github.com/dicebear/styles/v10"
 
 	"github.com/google/uuid"
 	"github.com/recodeorg/tether"
@@ -160,7 +164,7 @@ func main() {
 		if channel.ID == "" {
 			return false, nil
 		}
-		if channel.IsPrivate {
+		if !channel.IsPrivate {
 			return true, nil
 		}
 		ctx.TrackCollection("channel_members", "user_id", userID)
@@ -268,7 +272,6 @@ func main() {
 
 	engine.RegisterQuery("getChannels", func(ctx *tether.QueryCtx) (any, error) {
 		permittedChannels, err := ctx.Auth.ExecuteGuard("permittedChannels", map[string]any{})
-		fmt.Println(permittedChannels)
 		if err != nil {
 			return nil, errors.New("unauthorized")
 		}
@@ -291,8 +294,32 @@ func main() {
 		if err := ctx.DB.Where("id IN (?)", ids).Find(&channels).Error; err != nil {
 			return nil, errors.New("failed to get channels")
 		}
-		fmt.Println(channels)
 		return channels, nil
+	})
+
+	engine.RegisterQuery("getChannel", func(ctx *tether.QueryCtx) (any, error) {
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok {
+			return nil, errors.New("channelID is required")
+		}
+		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
+			"channelID": channelID,
+		})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isChannelMemberBool, ok := isChannelMember.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isChannelMemberBool {
+			return nil, errors.New("unauthorized")
+		}
+		channel := &Channel{}
+		if err := ctx.DB.Where("id = ?", channelID).First(channel).Error; err != nil {
+			return nil, errors.New("failed to get channel")
+		}
+		return channel, nil
 	})
 
 	engine.RegisterQuery("getMessages", func(ctx *tether.QueryCtx) (any, error) {
@@ -315,10 +342,90 @@ func main() {
 		}
 		ctx.TrackCollection("messages", "channel_id", channelID)
 		messages := []Message{}
-		if err := ctx.DB.Where("channel_id = ?", channelID).Find(&messages).Error; err != nil {
+		if err := ctx.DB.Where("channel_id = ?", channelID).Find(&messages).Limit(30).Order("created_at DESC").Error; err != nil {
 			return nil, errors.New("failed to get messages")
 		}
-		return messages, nil
+		userIDs := make([]string, 0, len(messages))
+		for _, message := range messages {
+			if !slices.Contains(userIDs, message.UserID) {
+				userIDs = append(userIDs, message.UserID)
+			}
+		}
+		users := []User{}
+		if err := ctx.DB.Where("id IN (?)", userIDs).Find(&users).Error; err != nil {
+			return nil, errors.New("failed to get users")
+		}
+		messagesWithUsers := make([]map[string]any, 0, len(messages))
+		for _, message := range messages {
+			for _, user := range users {
+				if message.UserID == user.ID {
+					messagesWithUsers = append(messagesWithUsers, map[string]any{
+						"message": message,
+						"user": map[string]any{ // rebuild the user object to avoid revealing sensitive data
+							"id":        user.ID,
+							"username":  user.Username,
+							"nickname":  user.Nickname,
+							"avatarUrl": user.AvatarUrl,
+							"role":      user.Role,
+							"status":    user.Status,
+							"presence":  user.Presence,
+						},
+					})
+					break
+				}
+			}
+		}
+		return messagesWithUsers, nil
+	})
+
+	engine.RegisterQuery("getChannelMembers", func(ctx *tether.QueryCtx) (any, error) {
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok {
+			return nil, errors.New("channelID is required")
+		}
+		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
+			"channelID": channelID,
+		})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isChannelMemberBool, ok := isChannelMember.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isChannelMemberBool {
+			return nil, errors.New("unauthorized")
+		}
+		// check if channel is private
+		channel := &Channel{}
+		if err := ctx.DB.Where("id = ?", channelID).First(channel).Error; err != nil {
+			return nil, errors.New("failed to get channel")
+		}
+		if channel.IsPrivate {
+			// get all channel members, as this is a private channel
+			ctx.TrackCollection("channel_members", "channel_id", channelID)
+			channelMembers := []ChannelMember{}
+			if err := ctx.DB.Where("channel_id = ?", channelID).Find(&channelMembers).Error; err != nil {
+				return nil, errors.New("failed to get channel members")
+			}
+			userIDs := make([]string, 0, len(channelMembers))
+			for _, channelMember := range channelMembers {
+				userIDs = append(userIDs, channelMember.UserID)
+			}
+			users := []User{}
+			if err := ctx.DB.Where("id IN (?)", userIDs).Find(&users).Error; err != nil {
+				return nil, errors.New("failed to get users")
+			}
+			return users, nil
+		} else {
+			// get all users, as this is a public channel
+			ctx.TrackTable("users")
+			users := []User{}
+			if err := ctx.DB.Find(&users).Error; err != nil {
+				return nil, errors.New("failed to get users")
+			}
+			return users, nil
+		}
 	})
 
 	engine.RegisterQuery("getUserInfo", func(ctx *tether.QueryCtx) (any, error) {
@@ -331,6 +438,62 @@ func main() {
 			return nil, errors.New("failed to get user info")
 		}
 		return user, nil
+	})
+
+	engine.RegisterMutation("sendMessage", func(ctx *tether.MutationCtx) (any, error) {
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok {
+			return nil, errors.New("channelID is required")
+		}
+		message, ok := ctx.Params["message"].(string)
+		if !ok {
+			return nil, errors.New("message is required")
+		}
+		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
+			"channelID": channelID,
+		})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isChannelMemberBool, ok := isChannelMember.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isChannelMemberBool {
+			return nil, errors.New("unauthorized")
+		}
+		userID, err := ctx.Auth.GetIdentity()
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		messageModel := &Message{
+			ID:        uuid.New().String(),
+			ChannelID: channelID,
+			UserID:    userID,
+			Content:   message,
+		}
+		if err := ctx.DB.Create(messageModel).Error; err != nil {
+			return nil, errors.New("failed to send message")
+		}
+		return messageModel, nil
+	})
+
+	engine.RegisterMutation("generateAvatar", func(ctx *tether.MutationCtx) (any, error) {
+		username, ok := ctx.Params["username"].(string)
+		if !ok {
+			return nil, errors.New("username is required")
+		}
+		style, err := dicebear.NewStyle([]byte(styles.Glass))
+		if err != nil {
+			return nil, errors.New("failed to create style")
+		}
+		avatar, err := dicebear.NewAvatar(style, map[string]any{
+			"seed": username,
+			"size": 128,
+		})
+		avatarSVGString := avatar.SVG()
+
+		return avatarSVGString, nil
 	})
 
 	http.HandleFunc("/tether", engine.Handle)
