@@ -18,9 +18,11 @@ function AutoLogin() {
   return null
 }
 
+const url = import.meta.env.VITE_TETHER_URL || 'http://localhost:8080/tether'
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <TetherProvider url="http://localhost:8080/tether">
+    <TetherProvider url={url}>
       <AutoLogin />
       <BrowserRouter>
         <Routes>

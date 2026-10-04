@@ -41,6 +41,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/recodeorg/tether v1.0.0 h1:sk5P/oYglkLaQ6swFDHBYp5sFGnQk616nUqTQRgRya0=
 github.com/recodeorg/tether v1.0.0/go.mod h1:vQelMaQAbBj3rkYPRLasIy/7VvjBDGnCHzlnxSJh4Qo=
+github.com/recodeorg/tether v1.2.0 h1:dHSyPPJWHk4DOocmZPxM9Fff4CJ4wGyw6A+uLie9h0w=
+github.com/recodeorg/tether v1.2.0/go.mod h1:vQelMaQAbBj3rkYPRLasIy/7VvjBDGnCHzlnxSJh4Qo=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/robfig/cron/v3 v3.0.0 h1:kQ6Cb7aHOHTSzNVNEhmp8EcWKLb4CbiMW9h9VyIhO4E=

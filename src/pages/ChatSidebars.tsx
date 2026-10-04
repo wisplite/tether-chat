@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tetherdb/react'
+import { useQuery, useMutation, useTether } from '@tetherdb/react'
 import { Outlet, useParams } from 'react-router'
 import { CaretRightIcon, PlusIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
@@ -46,8 +46,10 @@ function ChannelItem({ channel }: { channel: any }) {
 }
 
 function UserItem({ user }: { user: any }) {
+    const tether = useTether()
     return (
-        <div className="flex flex-row items-center justify-start w-full rounded-md cursor-pointer" key={user.ID}>
+        <div className="flex flex-row items-center justify-start w-full rounded-md cursor-pointer gap-1" key={user.ID}>
+            <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt={user.Username} className="w-8 h-8 rounded-full" />
             <p className="text-md font-bold text-foreground-muted p-1">{user.Username}</p>
         </div>
     )
@@ -85,7 +87,7 @@ export default function ChatSidebars() {
                     ))}
                 </div>
             </div>
-            <div className="flex flex-col items-center justify-center h-screen flex-1 bg-background">
+            <div className="flex h-screen min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
             <Outlet />
             </div>
             <div className="flex flex-col items-start justify-start h-screen w-1/5 bg-background-secondary p-2">

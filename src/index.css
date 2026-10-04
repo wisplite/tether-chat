@@ -22,8 +22,24 @@
   --color-warning: light-dark(#e3a236, #be995a);
 }
 
+/* Scroll anchoring fights prepended history and jumps to the new page. */
+.message-scroll,
+.message-scroll * {
+  overflow-anchor: none;
+}
+
 @layer base {
-  :root {
+  :root,
+  :root[data-theme=""],
+  :root[data-theme="system"] {
     color-scheme: light dark;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
   }
 }

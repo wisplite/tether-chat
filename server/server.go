@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"net/http"
@@ -14,10 +15,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/recodeorg/tether"
+	"github.com/recodeorg/tether/storage"
+	"github.com/recodeorg/tether/storage/local"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+const GormSQLiteTimeLayout = "2006-01-02 15:04:05.999999999-07:00"
 
 type User struct {
 	ID         string `gorm:"primaryKey"`
@@ -93,6 +98,13 @@ func main() {
 	engine.CreateTable(&Channel{})
 	engine.CreateTable(&ChannelMember{})
 	engine.CreateTable(&Message{})
+
+	localStorage, err := local.New("uploads")
+	if err != nil {
+		panic("failed to create storage")
+	}
+
+	engine.SetStorage(localStorage, "/storage")
 
 	engine.SetCheckOrigin(func(r *http.Request) bool {
 		return true
@@ -199,9 +211,45 @@ func main() {
 		if err := ctx.DB.Create(user).Error; err != nil {
 			return nil, errors.New("failed to create user")
 		}
+		ctx.ExecuteMutation("generateAvatar", map[string]any{
+			"username": username,
+			"userID":   user.ID,
+		})
 		return map[string]any{
 			"user": user,
 		}, nil
+	})
+
+	engine.RegisterMutation("generateAvatar", func(ctx *tether.MutationCtx) (any, error) {
+		username, ok := ctx.Params["username"].(string)
+		if !ok {
+			return nil, errors.New("username is required")
+		}
+		userID, ok := ctx.Params["userID"].(string)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		style, err := dicebear.NewStyle([]byte(styles.Waves))
+		if err != nil {
+			return nil, errors.New("failed to create style")
+		}
+		avatar, err := dicebear.NewAvatar(style, map[string]any{
+			"seed": username,
+			"size": 128,
+		})
+		avatarSVGString := avatar.SVG()
+
+		fileID, err := ctx.Storage.PutFile("image/svg+xml", strings.NewReader(avatarSVGString), storage.Public())
+		if err != nil {
+			return nil, errors.New("failed to upload avatar")
+		}
+
+		err = ctx.DB.Model(&User{}).Where("id = ?", userID).Update("avatar_url", fmt.Sprintf("/storage/public/%s", fileID)).Error
+		if err != nil {
+			return nil, errors.New("failed to update avatar url")
+		}
+
+		return avatarSVGString, nil
 	})
 
 	engine.RegisterMutation("login", func(ctx *tether.MutationCtx) (any, error) {
@@ -327,6 +375,22 @@ func main() {
 		if !ok {
 			return nil, errors.New("channelID is required")
 		}
+		startCursorString, ok := ctx.Params["StartCursor"].(string)
+		if !ok {
+			startCursorString = ""
+		}
+		endCursorString, ok := ctx.Params["EndCursor"].(string)
+		if !ok {
+			endCursorString = ""
+		}
+		startCursor, err := time.Parse(time.RFC3339Nano, startCursorString)
+		if err != nil {
+			startCursor = time.Time{}
+		}
+		endCursor, err := time.Parse(time.RFC3339Nano, endCursorString)
+		if err != nil {
+			endCursor = time.Time{}
+		}
 		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
 			"channelID": channelID,
 		})
@@ -342,7 +406,14 @@ func main() {
 		}
 		ctx.TrackCollection("messages", "channel_id", channelID)
 		messages := []Message{}
-		if err := ctx.DB.Where("channel_id = ?", channelID).Find(&messages).Limit(30).Order("created_at DESC").Error; err != nil {
+		q := ctx.DB.Where("channel_id = ?", channelID).Order("created_at DESC").Limit(30)
+		if !startCursor.IsZero() {
+			q = q.Where("created_at < ?", startCursor)
+		}
+		if !endCursor.IsZero() {
+			q = q.Where("created_at > ?", endCursor)
+		}
+		if err := q.Find(&messages).Error; err != nil {
 			return nil, errors.New("failed to get messages")
 		}
 		userIDs := make([]string, 0, len(messages))
@@ -375,8 +446,39 @@ func main() {
 				}
 			}
 		}
-		return messagesWithUsers, nil
+		endCursorClient := ""
+		startCursorClient := ""
+		if len(messages) > 0 {
+			endCursorClient = messages[len(messages)-1].CreatedAt.Format(time.RFC3339Nano)
+		}
+		if len(messages) > 0 {
+			startCursorClient = messages[0].CreatedAt.Format(time.RFC3339Nano)
+		}
+		return map[string]any{
+			"Data":        messagesWithUsers,
+			"EndCursor":   endCursorClient,
+			"StartCursor": startCursorClient,
+			"HasMore":     len(messages) == 30,
+			"MaxSize":     30,
+		}, nil
 	})
+
+	sanitizeUsers := func(users []User) []User {
+		sanitizedUsers := make([]User, 0, len(users))
+		for _, user := range users {
+			sanitizedUsers = append(sanitizedUsers, User{
+				ID:         user.ID,
+				Username:   user.Username,
+				Nickname:   user.Nickname,
+				AvatarUrl:  user.AvatarUrl,
+				Role:       user.Role,
+				Status:     user.Status,
+				Presence:   user.Presence,
+				LastActive: user.LastActive,
+			})
+		}
+		return sanitizedUsers
+	}
 
 	engine.RegisterQuery("getChannelMembers", func(ctx *tether.QueryCtx) (any, error) {
 		channelID, ok := ctx.Params["channelID"].(string)
@@ -416,7 +518,7 @@ func main() {
 			if err := ctx.DB.Where("id IN (?)", userIDs).Find(&users).Error; err != nil {
 				return nil, errors.New("failed to get users")
 			}
-			return users, nil
+			return sanitizeUsers(users), nil
 		} else {
 			// get all users, as this is a public channel
 			ctx.TrackTable("users")
@@ -424,7 +526,7 @@ func main() {
 			if err := ctx.DB.Find(&users).Error; err != nil {
 				return nil, errors.New("failed to get users")
 			}
-			return users, nil
+			return sanitizeUsers(users), nil
 		}
 	})
 
@@ -478,24 +580,7 @@ func main() {
 		return messageModel, nil
 	})
 
-	engine.RegisterMutation("generateAvatar", func(ctx *tether.MutationCtx) (any, error) {
-		username, ok := ctx.Params["username"].(string)
-		if !ok {
-			return nil, errors.New("username is required")
-		}
-		style, err := dicebear.NewStyle([]byte(styles.Glass))
-		if err != nil {
-			return nil, errors.New("failed to create style")
-		}
-		avatar, err := dicebear.NewAvatar(style, map[string]any{
-			"seed": username,
-			"size": 128,
-		})
-		avatarSVGString := avatar.SVG()
-
-		return avatarSVGString, nil
-	})
-
 	http.HandleFunc("/tether", engine.Handle)
+	http.HandleFunc("/storage/", engine.StorageHandler)
 	http.ListenAndServe(":8080", nil)
 }
