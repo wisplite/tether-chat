@@ -127,6 +127,28 @@ func main() {
 		return true, nil
 	})
 
+	engine.RegisterGuard("isMessageOwner", func(ctx *tether.GuardCtx) (any, error) {
+		userID, err := ctx.Auth.GetIdentity()
+		if err != nil {
+			return false, nil
+		}
+		if userID == "" {
+			return false, nil
+		}
+		messageID, ok := ctx.Params["messageID"].(string)
+		if !ok {
+			return false, nil
+		}
+		message := &Message{}
+		if err := ctx.DB.Where("id = ?", messageID).First(message).Error; err != nil {
+			return false, nil
+		}
+		if message.UserID != userID {
+			return false, nil
+		}
+		return true, nil
+	})
+
 	engine.RegisterGuard("permittedChannels", func(ctx *tether.GuardCtx) (any, error) {
 		userID, err := ctx.Auth.GetIdentity()
 		if err != nil {
@@ -217,7 +239,7 @@ func main() {
 			"userID":   user.ID,
 		})
 		return map[string]any{
-			"user": user,
+			"userID": user.ID,
 		}, nil
 	})
 
@@ -671,6 +693,94 @@ func main() {
 			return nil, errors.New("failed to update channel")
 		}
 		return channel, nil
+	})
+
+	engine.RegisterMutation("deleteChannel", func(ctx *tether.MutationCtx) (any, error) {
+		isAdmin, err := ctx.Auth.ExecuteGuard("isAdmin", map[string]any{})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isAdminBool, ok := isAdmin.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isAdminBool {
+			return nil, errors.New("unauthorized")
+		}
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok {
+			return nil, errors.New("channelID is required")
+		}
+		if err := ctx.DB.Where("id = ?", channelID).Delete(&Channel{}).Error; err != nil {
+			return nil, errors.New("failed to delete channel")
+		}
+		return map[string]any{
+			"success": true,
+		}, nil
+	})
+
+	engine.RegisterMutation("deleteMessage", func(ctx *tether.MutationCtx) (any, error) {
+		messageID, ok := ctx.Params["messageID"].(string)
+		if !ok {
+			return nil, errors.New("messageID is required")
+		}
+		isMessageOwner, err := ctx.Auth.ExecuteGuard("isMessageOwner", map[string]any{
+			"messageID": messageID,
+		})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isAdmin, err := ctx.Auth.ExecuteGuard("isAdmin", map[string]any{})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isAdminBool, ok := isAdmin.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		isMessageOwnerBool, ok := isMessageOwner.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isMessageOwnerBool && !isAdminBool {
+			return nil, errors.New("unauthorized")
+		}
+		if err := ctx.DB.Where("id = ?", messageID).Delete(&Message{}).Error; err != nil {
+			return nil, errors.New("failed to delete message")
+		}
+		return map[string]any{
+			"success": true,
+		}, nil
+	})
+
+	engine.RegisterMutation("editMessage", func(ctx *tether.MutationCtx) (any, error) {
+		messageID, ok := ctx.Params["messageID"].(string)
+		if !ok {
+			return nil, errors.New("messageID is required")
+		}
+		message, ok := ctx.Params["message"].(string)
+		if !ok {
+			return nil, errors.New("message is required")
+		}
+		isMessageOwner, err := ctx.Auth.ExecuteGuard("isMessageOwner", map[string]any{
+			"messageID": messageID,
+		})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isMessageOwnerBool, ok := isMessageOwner.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isMessageOwnerBool {
+			return nil, errors.New("unauthorized")
+		}
+		if err := ctx.DB.Model(&Message{}).Where("id = ?", messageID).Update("content", message).Error; err != nil {
+			return nil, errors.New("failed to edit message")
+		}
+		return map[string]any{
+			"success": true,
+		}, nil
 	})
 
 	http.HandleFunc("/tether", engine.Handle)

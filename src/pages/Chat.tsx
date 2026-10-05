@@ -137,6 +137,10 @@ function AttachmentItem({ attachment }: { attachment: string }) {
 function MessageItem({ message, user, compact }: { message: any, user: any, compact: boolean }) {
   const tether = useTether()
   const [isHovered, setIsHovered] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const deleteMessageMutation = useMutation('deleteMessage')
+  const editMessageMutation = useMutation('editMessage')
+  const [messageContent, setMessageContent] = useState(message.Content)
   let time = new Date(message.CreatedAt).toLocaleTimeString();
   if (isYesterdayOrOlder(new Date(message.CreatedAt))) {
     time = new Date(message.CreatedAt).toLocaleDateString("en-US", { month: 'numeric', day: 'numeric', year: '2-digit' }) + ', ' + new Date(message.CreatedAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
@@ -153,7 +157,19 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
       {compact && <div className="w-8 h-6 shrink-0 rounded-full bg-transparent" />}
       <div className="flex flex-col items-start justify-start min-w-0 flex-1">
         {!compact && <p className="text-sm text-foreground-muted">{user.username} • {time}</p>}
-        <p className="max-w-full wrap-break-word">{message.Content}</p>
+        {isEditing ? (
+          <input type="text" className="max-w-full wrap-break-word bg-transparent outline-none w-full" autoFocus value={messageContent} onChange={(e) => setMessageContent(e.target.value)} onKeyDown={async (e) => {
+            if (e.key === 'Enter') {
+              const response = await editMessageMutation.mutate({ messageID: message.ID, message: messageContent })
+              if (response.error) {
+                console.error(response.error)
+              }
+              setIsEditing(false)
+            }
+          }} />
+        ) : (
+          <p className="max-w-full wrap-break-word">{message.Content}</p>
+        )}
         {message.Attachments.length > 0 && (
           <div className="flex flex-row flex-wrap items-start justify-start gap-2 w-full mt-1">
             {message.Attachments.map((attachment: string, index: number) => (
@@ -162,9 +178,9 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
           </div>
         )}
       </div>
-      {isHovered && <div className="absolute -top-4 right-1 flex flex-row items-center justify-center rounded-md bg-background-secondary p-1 gap-2">
-        <button className="text-sm font-bold text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {setIsHovered(false)}}><PencilIcon size={16} /></button>
-        <button className="text-sm font-bold text-error cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {setIsHovered(false)}}><TrashIcon size={16} /></button>
+      {isHovered && !isEditing && <div className="absolute -top-4 right-1 flex flex-row items-center justify-center rounded-md bg-background-secondary p-1 gap-2">
+        <button className="text-sm font-bold text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {setIsEditing(!isEditing)}}><PencilIcon size={16} /></button>
+        <button className="text-sm font-bold text-error cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {deleteMessageMutation.mutate({ messageID: message.ID })}}><TrashIcon size={16} /></button>
       </div>}
     </div>
   )

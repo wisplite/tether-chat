@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useMutation } from '@tetherdb/react'
-import { Link } from 'react-router'
+import { useMutation, useTether } from '@tetherdb/react'
+import { Link, useNavigate } from 'react-router'
 
 function Register() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const { mutate: register, isPending: isRegisterPending, error: registerError } = useMutation('createAccount')
+  const { mutate: login, isPending: isLoginPending, error: loginError } = useMutation('login')
+  const { setToken } = useTether()
+  const navigate = useNavigate()
   const [error, setError] = useState('')
   useEffect(() => {
     if (registerError) {
@@ -18,7 +21,15 @@ function Register() {
       setError('Passwords do not match')
       return
     }
-    await register({ username, password })
+    const { userID } = await register({ username, password })
+    if (userID) {
+      const response = await login({ username, password })
+      if (response.token) {
+        localStorage.setItem('token', response.token)
+        setToken(response.token)
+        navigate('/')
+      }
+    }
   }
   return (
   <div className="flex flex-col items-center justify-center h-screen bg-background">

@@ -41,6 +41,7 @@ function ChannelItem({ channel }: { channel: any }) {
     const [isPrivate, setIsPrivate] = useState(channel.IsPrivate)
     const [channelSettingsModalOpen, setChannelSettingsModalOpen] = useState(false)
     const updateChannelMutation = useMutation('updateChannel')
+    const deleteChannelMutation = useMutation('deleteChannel')
     const navigateToChannel = () => {
         navigate(`/chat/${channel.ID}`)
     }
@@ -67,6 +68,14 @@ function ChannelItem({ channel }: { channel: any }) {
             console.error(result.error)
         }
     }
+    const deleteChannel = async () => {
+        const result = await deleteChannelMutation.mutate({
+            channelID: channel.ID
+        })
+        if (result && !result.error) {
+            setChannelSettingsModalOpen(false)
+        }
+    }
     return (
         <div className={`flex flex-row items-center justify-between w-full rounded-md cursor-pointer py-1 px-2 ${channelId === channel.ID ? 'bg-foreground-ultra-muted' : 'hover:bg-foreground-muted-hover'}`} key={channel.ID} onClick={navigateToChannel} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
             <p className="text-md font-bold text-foreground-muted"># {channel.Name}</p>
@@ -77,7 +86,10 @@ function ChannelItem({ channel }: { channel: any }) {
                     <input type="text" placeholder="Channel Name" id="channelName" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
                     <p className="text-sm font-bold text-foreground-muted">Is Private</p>
                     <input type="checkbox" placeholder="Is Private" id="isPrivate" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
-                    <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={updateChannel}>Update</button>
+                    <div className="flex flex-row items-center justify-between gap-2 w-full">
+                        <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={updateChannel}>Update</button>
+                        <button className="bg-error text-white px-4 py-2 rounded-md cursor-pointer hover:bg-error-hover" onClick={deleteChannel}>Delete</button>
+                    </div>
                 </div>
             } />
         </div>
