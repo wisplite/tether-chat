@@ -162,7 +162,7 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
           </div>
         )}
       </div>
-      {isHovered && <div className="absolute -top-4 right-1 flex flex-row items-center justify-center rounded-md bg-foreground p-1 gap-2">
+      {isHovered && <div className="absolute -top-4 right-1 flex flex-row items-center justify-center rounded-md bg-background-secondary p-1 gap-2">
         <button className="text-sm font-bold text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {setIsHovered(false)}}><PencilIcon size={16} /></button>
         <button className="text-sm font-bold text-error cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {setIsHovered(false)}}><TrashIcon size={16} /></button>
       </div>}
