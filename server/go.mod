@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/google/uuid v1.3.0
-	github.com/recodeorg/tether v1.2.0
+	github.com/recodeorg/tether v1.3.1
 	golang.org/x/crypto v0.57.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2

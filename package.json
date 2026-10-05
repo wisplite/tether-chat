@@ -12,7 +12,7 @@
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.3.3",
-    "@tetherdb/react": "^1.2.0-dev.0",
+    "@tetherdb/react": "^1.2.0-dev.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-intersection-observer": "^11.0.1",

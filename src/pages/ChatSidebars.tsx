@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useTether } from '@tetherdb/react'
 import { Outlet, useParams } from 'react-router'
-import { CaretRightIcon, PlusIcon } from '@phosphor-icons/react'
+import { CaretRightIcon, PlusIcon, GearIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import ChatModal from './ChatModal'
@@ -35,12 +35,51 @@ function CreateChannel({ onClose }: { onClose: () => void }) {
 function ChannelItem({ channel }: { channel: any }) {
     const navigate = useNavigate()
     const { channelId } = useParams()
+    const { prefetch } = useTether()
+    const [isHovered, setIsHovered] = useState(false)
+    const [channelName, setChannelName] = useState(channel.Name)
+    const [isPrivate, setIsPrivate] = useState(channel.IsPrivate)
+    const [channelSettingsModalOpen, setChannelSettingsModalOpen] = useState(false)
+    const updateChannelMutation = useMutation('updateChannel')
     const navigateToChannel = () => {
         navigate(`/chat/${channel.ID}`)
     }
+    const handleMouseEnter = async () => {
+        setIsHovered(true)
+        const { ready } = prefetch('getMessages', { channelID: channel.ID, StartCursor: null, EndCursor: null })
+        const data = await ready;
+        const { ready: readyStaticFrame } = prefetch('getMessages', { channelID: channel.ID, StartCursor: data.StartCursor, EndCursor: data.EndCursor })
+        prefetch('getChannelMembers', { channelID: channel.ID })
+        prefetch('getChannel', { channelID: channel.ID })
+    }
+    const handleMouseLeave = () => {
+        setIsHovered(false)
+    }
+    const updateChannel = async () => {
+        const result = await updateChannelMutation.mutate({
+            channelID: channel.ID,
+            channelName: channelName,
+            isPrivate: isPrivate
+        })
+        if (result && !result.error) {
+            setChannelSettingsModalOpen(false)
+        } else {
+            console.error(result.error)
+        }
+    }
     return (
-        <div className={`flex flex-row items-center justify-start w-full rounded-md cursor-pointer ${channelId === channel.ID ? 'bg-foreground-ultra-muted' : 'hover:bg-foreground-muted-hover'}`} key={channel.ID} onClick={navigateToChannel}>
-            <p className="text-md font-bold text-foreground-muted p-1"># {channel.Name}</p>
+        <div className={`flex flex-row items-center justify-between w-full rounded-md cursor-pointer py-1 px-2 ${channelId === channel.ID ? 'bg-foreground-ultra-muted' : 'hover:bg-foreground-muted-hover'}`} key={channel.ID} onClick={navigateToChannel} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+            <p className="text-md font-bold text-foreground-muted"># {channel.Name}</p>
+            {isHovered && <button className="text-sm font-bold text-foreground-muted cursor-pointer" onClick={() => {setChannelSettingsModalOpen(true)}}><GearIcon size={16} /></button>}
+            <ChatModal title="Channel Settings" open={channelSettingsModalOpen} onClose={() => setChannelSettingsModalOpen(false)} children={
+                <div className="flex flex-col items-start justify-start gap-2">
+                    <p className="text-sm font-bold text-foreground-muted">Channel Name</p>
+                    <input type="text" placeholder="Channel Name" id="channelName" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
+                    <p className="text-sm font-bold text-foreground-muted">Is Private</p>
+                    <input type="checkbox" placeholder="Is Private" id="isPrivate" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+                    <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={updateChannel}>Update</button>
+                </div>
+            } />
         </div>
     )
 }
@@ -81,7 +120,7 @@ export default function ChatSidebars() {
                         <CreateChannel onClose={() => setCreateChannelModalOpen(false)} />
                     } />
                 </div>
-                <div className={`flex flex-col items-start justify-start gap-2 w-full pt-2 ${channelListOpen ? '' : 'hidden'}`}>
+                <div className={`flex flex-col items-start justify-start gap-1 w-full pt-2 ${channelListOpen ? '' : 'hidden'}`}>
                 {channels?.map((channel: any) => (
                         <ChannelItem key={channel.ID} channel={channel} />
                     ))}

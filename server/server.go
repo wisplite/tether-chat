@@ -63,12 +63,13 @@ type ChannelMember struct {
 }
 
 type Message struct {
-	ID        string `gorm:"primaryKey"`
-	ChannelID string `tether:"track" gorm:"index"`
-	UserID    string `gorm:"index"`
-	Content   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string `gorm:"primaryKey"`
+	ChannelID   string `tether:"track" gorm:"index"`
+	UserID      string `gorm:"index"`
+	Content     string
+	Attachments []string `gorm:"serializer:json"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Auth struct{}
@@ -404,7 +405,6 @@ func main() {
 		if !isChannelMemberBool {
 			return nil, errors.New("unauthorized")
 		}
-		ctx.TrackCollection("messages", "channel_id", channelID)
 		messages := []Message{}
 		q := ctx.DB.Where("channel_id = ?", channelID).Order("created_at DESC").Limit(30)
 		if !startCursor.IsZero() {
@@ -412,6 +412,9 @@ func main() {
 		}
 		if !endCursor.IsZero() {
 			q = q.Where("created_at > ?", endCursor)
+		}
+		if startCursor.IsZero() {
+			ctx.TrackCollection("messages", "channel_id", channelID)
 		}
 		if err := q.Find(&messages).Error; err != nil {
 			return nil, errors.New("failed to get messages")
@@ -428,10 +431,23 @@ func main() {
 		}
 		messagesWithUsers := make([]map[string]any, 0, len(messages))
 		for _, message := range messages {
+			attachments := []string{}
+			for _, attachment := range message.Attachments {
+				downloadURL, err := ctx.Storage.GetDownloadURL(attachment, storage.WithDownloadExpiresIn(time.Hour*24), storage.UseCachedURLs())
+				if err != nil {
+					return nil, errors.New("failed to get download URL")
+				}
+				attachments = append(attachments, downloadURL)
+			}
 			for _, user := range users {
 				if message.UserID == user.ID {
 					messagesWithUsers = append(messagesWithUsers, map[string]any{
-						"message": message,
+						"message": map[string]any{
+							"ID":          message.ID,
+							"Content":     message.Content,
+							"Attachments": attachments,
+							"CreatedAt":   message.CreatedAt,
+						},
 						"user": map[string]any{ // rebuild the user object to avoid revealing sensitive data
 							"id":        user.ID,
 							"username":  user.Username,
@@ -551,6 +567,18 @@ func main() {
 		if !ok {
 			return nil, errors.New("message is required")
 		}
+		raw, ok := ctx.Params["attachments"].([]any)
+		if !ok {
+			raw = []any{}
+		}
+		attachments := make([]string, 0, len(raw))
+		for _, attachment := range raw {
+			attachmentString, ok := attachment.(string)
+			if !ok {
+				return nil, errors.New("attachments must be strings")
+			}
+			attachments = append(attachments, attachmentString)
+		}
 		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
 			"channelID": channelID,
 		})
@@ -569,15 +597,80 @@ func main() {
 			return nil, errors.New("unauthorized")
 		}
 		messageModel := &Message{
-			ID:        uuid.New().String(),
-			ChannelID: channelID,
-			UserID:    userID,
-			Content:   message,
+			ID:          uuid.New().String(),
+			ChannelID:   channelID,
+			UserID:      userID,
+			Content:     message,
+			Attachments: attachments,
 		}
 		if err := ctx.DB.Create(messageModel).Error; err != nil {
 			return nil, errors.New("failed to send message")
 		}
 		return messageModel, nil
+	})
+
+	engine.RegisterMutation("uploadFile", func(ctx *tether.MutationCtx) (any, error) {
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok {
+			return nil, errors.New("channelID is required")
+		}
+		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
+			"channelID": channelID,
+		})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isChannelMemberBool, ok := isChannelMember.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isChannelMemberBool {
+			return nil, errors.New("unauthorized")
+		}
+		fileInfo, err := ctx.Storage.GetUploadURL(storage.WithMaxBytes(1024 * 1024 * 50))
+		if err != nil {
+			return nil, errors.New("failed to get upload URL")
+		}
+		return map[string]any{
+			"uploadURL": fileInfo.UploadURL,
+			"fileID":    fileInfo.FileID,
+		}, nil
+	})
+
+	engine.RegisterMutation("updateChannel", func(ctx *tether.MutationCtx) (any, error) {
+		isAdmin, err := ctx.Auth.ExecuteGuard("isAdmin", map[string]any{})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isAdminBool, ok := isAdmin.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isAdminBool {
+			return nil, errors.New("unauthorized")
+		}
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok {
+			return nil, errors.New("channelID is required")
+		}
+		channelName, ok := ctx.Params["channelName"].(string)
+		if !ok {
+			return nil, errors.New("channelName is required")
+		}
+		isPrivate, ok := ctx.Params["isPrivate"].(bool)
+		if !ok {
+			return nil, errors.New("isPrivate is required")
+		}
+		channel := &Channel{}
+		if err := ctx.DB.Where("id = ?", channelID).First(channel).Error; err != nil {
+			return nil, errors.New("failed to get channel")
+		}
+		channel.Name = channelName
+		channel.IsPrivate = isPrivate
+		if err := ctx.DB.Save(channel).Error; err != nil {
+			return nil, errors.New("failed to update channel")
+		}
+		return channel, nil
 	})
 
 	http.HandleFunc("/tether", engine.Handle)
