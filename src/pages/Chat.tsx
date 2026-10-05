@@ -2,7 +2,7 @@ import { useMutation, usePaginatedQuery, useQuery, useTether } from '@tetherdb/r
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useInView } from 'react-intersection-observer'
-import { PlusIcon, FileIcon, TrashIcon, PencilIcon, DownloadIcon } from '@phosphor-icons/react'
+import { PlusIcon, FileIcon, TrashIcon, PencilIcon, DownloadIcon, PaperPlaneTiltIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
 
 function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -118,14 +118,14 @@ function FileAttachment({ src, filename, size, onMouseEnter, onMouseLeave }: { s
     }
   }
   return (
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="basis-1/2 relative flex items-center justify-between gap-2 overflow-hidden rounded-md bg-background-secondary p-2 mb-1">
-      <div className="flex flex-col items-start justify-start gap-2">
+    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="relative flex w-full max-w-sm min-w-0 items-center justify-between gap-3 overflow-hidden rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-2 mb-1">
+      <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
         <p className="min-w-0 truncate text-sm text-foreground-muted">{filename}</p>
         <p className="text-xs text-foreground-muted">{size ? formatBytes(size) : ''}</p>
       </div>
       <button
         type="button"
-        className="inline-flex w-10 h-10 shrink-0 cursor-pointer items-center justify-center text-foreground-muted hover:bg-foreground-muted-hover rounded-md disabled:cursor-progress"
+        className="inline-flex w-10 h-10 shrink-0 cursor-pointer items-center justify-center text-foreground-muted hover:bg-foreground-muted-hover rounded-[2px] focus-visible:outline-2 focus-visible:outline-brand-primary disabled:cursor-progress"
         onClick={download}
         disabled={downloading}
         aria-label={downloading ? `Downloading ${filename}` : `Download ${filename}`}
@@ -133,7 +133,7 @@ function FileAttachment({ src, filename, size, onMouseEnter, onMouseLeave }: { s
         {downloading && !indeterminate ? (
           <span className="text-sm tabular-nums">{progress}%</span>
         ) : (
-          <DownloadIcon className="h-6 w-6" />
+          <DownloadIcon className="h-5 w-5" />
         )}
       </button>
       {downloading && (
@@ -162,7 +162,7 @@ function UploadProgress({ percent }: { percent: number }) {
   const offset = circumference - (percent / 100) * circumference
   return (
     <div
-      className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-black/50"
+      className="absolute inset-0 z-10 flex items-center justify-center rounded-[2px] bg-black/50"
       role="progressbar"
       aria-valuenow={percent}
       aria-valuemin={0}
@@ -204,6 +204,7 @@ function MessageBox({ channel, onSendMessage }: { channel: any, onSendMessage: (
     })
   }
   const sendMessage = async () => {
+    if (uploading || sendMessageMutation.isPending || (!message.trim() && files.length === 0)) return
     const attachments = []
     try {
       if (files.length > 0) {
@@ -250,19 +251,19 @@ function MessageBox({ channel, onSendMessage }: { channel: any, onSendMessage: (
     fileInputRef.current?.click()
   }
   return (
-    <div className="flex flex-col items-center justify-start rounded-md w-full bg-background-secondary p-2 gap-2">
+    <div className="flex w-full flex-col gap-3 rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-3 transition-colors focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20">
       {files.length > 0 && (
         <div className="flex flex-row overflow-x-auto items-center justify-start gap-2 w-full">
           {files.map((item) => {
             const percent = uploadProgress[item.id]
             return <div key={item.id} className="flex flex-row items-center justify-start gap-2 w-24 h-24 relative shrink-0">
               {!uploading && (
-                <button className="w-8 h-8 rounded-md bg-background-secondary hover:bg-background-tertiary absolute top-0 right-0 z-20 flex items-center justify-center cursor-pointer" onClick={() => removeFile(item.id)}>
+                <button aria-label={`Remove ${item.file.name}`} className="w-8 h-8 rounded-[2px] bg-background-secondary hover:bg-background-tertiary absolute top-0 right-0 z-20 flex items-center justify-center cursor-pointer" onClick={() => removeFile(item.id)}>
                   <TrashIcon className="w-4 h-4 text-error" />
                 </button>
               )}
               {item.previewUrl ? (
-                <img src={item.previewUrl} alt={item.file.name} className="w-full h-full object-cover rounded-md" />
+                <img src={item.previewUrl} alt={item.file.name} className="w-full h-full object-cover rounded-[2px]" />
               ) : (
                 <FileIcon className="w-full h-full text-foreground-muted" />
               )}
@@ -282,14 +283,15 @@ function MessageBox({ channel, onSendMessage }: { channel: any, onSendMessage: (
         }}
       />
       <div className="flex flex-row items-center justify-start gap-2 w-full">
-        <button className="w-8 h-8 rounded-md bg-background-secondary hover:bg-foreground-muted-hover flex items-center justify-center cursor-pointer" disabled={uploading} onClick={openFilePicker}>
-          <PlusIcon className="w-6 h-6 text-foreground-muted" />
+        <button aria-label="Attach files" className="size-8 shrink-0 rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover flex items-center justify-center cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-primary disabled:opacity-50" disabled={uploading} onClick={openFilePicker}>
+          <PlusIcon className="size-5" />
         </button>
-        <input type="text" placeholder={`Message #${channel.Name}`} className="w-full bg-transparent outline-none" disabled={uploading} value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+        <input aria-label={`Message ${channel.Name}`} type="text" placeholder={`Message #${channel.Name}`} className="min-w-0 flex-1 bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-foreground-muted" disabled={uploading} value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
             sendMessage()
           }
         }}/>
+        <button type="button" aria-label="Send message" disabled={uploading || sendMessageMutation.isPending || (!message.trim() && files.length === 0)} onClick={sendMessage} className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] bg-brand-primary text-white transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-40"><PaperPlaneTiltIcon size={17} /></button>
       </div>
     </div>
   )
@@ -316,17 +318,17 @@ function AttachmentItem({ attachment: { url, filename }, onMouseEnter, onMouseLe
   }, [url])
   const src = tether.url.replace('/tether', '') + url
   if (contentType?.startsWith('image/')) {
-    return <img src={src} alt={filename} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="block h-64 object-cover rounded-md mb-1" />
+    return <img src={src} alt={filename} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="block h-auto max-h-64 max-w-full object-contain rounded-[2px] border border-background-tertiary mb-1" />
   } else if (contentType?.startsWith('video/')) {
     return <div className="basis-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <video src={src} className="block h-auto w-auto max-h-64 max-w-full rounded-md mb-1" controls />
+      <video src={src} className="block h-auto w-auto max-h-64 max-w-full rounded-[2px] mb-1" controls />
     </div>
   } else if (contentType?.startsWith('audio/')) {
     return <div className="basis-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <audio src={src} className="block w-full mb-1" controls />
     </div>
   } else if (contentType === null) {
-    return <div className="w-32 h-32 rounded-md bg-background" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
+    return <div className="w-32 h-32 rounded-[2px] bg-background" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
   } else {
     return <FileAttachment src={src} filename={filename} size={size} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
   }
@@ -348,17 +350,17 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
     time = new Date(message.CreatedAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
   }
   return (
-    <div className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-foreground-ultra-muted' : ''} w-full px-2 gap-2 ${compact ? '' : 'mt-4'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>
+    <div className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-background-secondary' : ''} w-full px-4 sm:px-6 gap-3 ${compact ? 'py-0.5' : 'pt-3 pb-0.5 mt-3'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>
       {!compact && (
-        <div className="h-11 shrink-0 flex items-center">
-          <img src={tether.url.replace('/tether', '') + user.avatarUrl} alt={user.username} className="w-8 h-8 rounded-full" />
+        <div className="w-8 shrink-0 pt-0.5">
+          <img src={tether.url.replace('/tether', '') + user.avatarUrl} alt={user.username} className="size-8 rounded-[2px] bg-background-tertiary object-cover" />
         </div>
       )}
       {compact && <div className="w-8 h-6 shrink-0 rounded-full bg-transparent" />}
       <div className="flex flex-col items-start justify-start min-w-0 flex-1">
-        {!compact && <p className="text-sm text-foreground-muted">{user.username} • {time}</p>}
+        {!compact && <p className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[13px] font-semibold text-foreground">{user.username}<span className="font-mono text-[11px] font-normal text-foreground-muted">{time}</span></p>}
         {isEditing ? (
-          <input type="text" className="max-w-full wrap-break-word bg-transparent outline-none w-full" autoFocus value={messageContent} onChange={(e) => setMessageContent(e.target.value)} onKeyDown={async (e) => {
+          <input type="text" aria-label="Edit message" className="w-full max-w-full rounded-[2px] border border-brand-primary bg-background px-2 py-1 text-[13px] leading-5 outline-none ring-2 ring-brand-primary/20" autoFocus value={messageContent} onChange={(e) => setMessageContent(e.target.value)} onKeyDown={async (e) => {
             if (e.key === 'Enter') {
               const response = await editMessageMutation.mutate({ messageID: message.ID, message: messageContent })
               if (response.error) {
@@ -368,7 +370,7 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
             }
           }} />
         ) : (
-          <p className="max-w-full wrap-break-word">{message.Content}</p>
+          <p className="max-w-full whitespace-pre-wrap wrap-anywhere text-[13px] leading-5">{message.Content}</p>
         )}
         {message.Attachments.length > 0 && (
           <div className="flex flex-row flex-wrap items-start justify-start gap-2 w-full mt-1">
@@ -378,9 +380,9 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
           </div>
         )}
       </div>
-      {showHover && !isEditing && <div className="absolute -top-4 right-1 flex flex-row items-center justify-center rounded-md bg-background-secondary p-1 gap-2">
-        <button className="text-sm font-bold text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {setIsEditing(!isEditing)}}><PencilIcon size={16} /></button>
-        <button className="text-sm font-bold text-error cursor-pointer hover:bg-foreground-muted-hover w-6 h-6 aspect-square flex items-center justify-center rounded-md transform transition-transform duration-300 hover:scale-110" onClick={() => {deleteMessageMutation.mutate({ messageID: message.ID })}}><TrashIcon size={16} /></button>
+      {showHover && !isEditing && <div className="absolute -top-3 right-4 flex items-center rounded-[2px] border border-background-tertiary bg-background p-0.5 gap-0.5 shadow-sm">
+        <button aria-label="Edit message" className="text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {setIsEditing(!isEditing)}}><PencilIcon size={16} /></button>
+        <button aria-label="Delete message" className="text-error cursor-pointer hover:bg-error/5 size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-error" onClick={() => {deleteMessageMutation.mutate({ messageID: message.ID })}}><TrashIcon size={16} /></button>
       </div>}
     </div>
   )
@@ -480,19 +482,26 @@ export default function Chat() {
     return () => observer.disconnect();
   }, [channelId, !!channel]);
 
-  if (channelError) {
-    return <div>Error: {channelError.message}</div>
-  }
   if (!channelId) {
-    return <div>No channel selected</div>
+    return <div className="flex h-full flex-col">
+      <header className="flex h-[88px] shrink-0 flex-col justify-center gap-1 border-b border-background-tertiary px-4 sm:px-6"><p className="text-xs text-foreground-muted">Tether Chat</p><h1 className="text-2xl font-bold tracking-tight sm:text-[32px] sm:leading-9">Workspace</h1></header>
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center"><ChatCircleIcon size={36} className="mb-4 text-brand-primary" /><h2 className="text-lg font-semibold tracking-tight">Your conversations live here</h2><p className="mt-2 max-w-xs text-[13px] leading-5 text-foreground-muted">Select a channel from the sidebar or create one to get started.</p></div>
+    </div>
+  }
+  if (channelError) {
+    return <div role="alert" className="m-6 rounded-[2px] border border-error/20 bg-error/5 p-4 text-sm text-error">Unable to load channel: {channelError.message}</div>
   }
   if (!channel) {
-    return <div></div>
+    return <div role="status" className="p-6 text-sm text-foreground-muted">Loading channel…</div>
   }
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background">
+      <header className="flex h-[88px] shrink-0 items-center justify-between gap-4 border-b border-background-tertiary px-4 sm:px-6">
+        <div className="min-w-0"><p className="mb-1 text-xs text-foreground-muted">{channel.IsPrivate ? 'Private channel' : 'Text channel'}</p><h1 className="flex min-w-0 items-center gap-2 text-2xl font-bold tracking-[-0.03em] leading-9 sm:text-[32px]">{channel.IsPrivate ? <LockSimpleIcon size={24} className="shrink-0 text-brand-primary" /> : <HashIcon size={24} className="shrink-0 text-brand-primary" />}<span className="truncate">{channel.Name}</span></h1></div>
+      </header>
+      {messagesError && <p role="alert" className="border-b border-error/20 bg-error/5 px-6 py-3 text-error">Unable to load messages: {messagesError.message}</p>}
       <div className="message-scroll flex min-h-0 w-full flex-1 flex-col overflow-y-auto [overflow-anchor:none]" onScroll={handleScroll} ref={containerRef}>
-        <div className="mt-auto flex w-full flex-col" ref={contentRef}>
+        <div className="mt-auto flex w-full flex-col pb-5" ref={contentRef}>
           {hasMoreMessages && <div ref={ref} className="h-[1px]"></div>}
           {messages?.slice().reverse().map((message: any, index: number) => {
             const prevItem = messages.slice().reverse()[index - 1];
@@ -509,8 +518,9 @@ export default function Chat() {
           })}
         </div>
       </div>
-      <div className="flex w-full shrink-0 flex-row items-center justify-start p-2">
-        <MessageBox channel={channel} onSendMessage={setScrollToBottom} />
+      <div className="flex w-full shrink-0 flex-col gap-2 border-t border-background-tertiary bg-background px-4 py-4 sm:px-6">
+        <MessageBox key={channelId} channel={channel} onSendMessage={setScrollToBottom} />
+        <p className="text-[11px] text-foreground-muted">Enter to send · + to attach files</p>
       </div>
     </div>
   )

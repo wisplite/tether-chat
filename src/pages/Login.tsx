@@ -1,3 +1,4 @@
+import AccountLayout from './AccountLayout'
 import { useState, useEffect } from 'react'
 import { useMutation, useTether } from '@tetherdb/react'
 import { Link, useNavigate } from 'react-router'
@@ -27,19 +28,21 @@ function Login() {
     }
   }
   return (
-  <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <h2 className="text-2xl font-bold">Login</h2>
-        <p className="text-sm text-foreground-muted">Please enter your username and password to login</p>
-        <div className="flex flex-col items-center justify-center gap-2 mt-4 w-full max-w-md">
-            <input className="w-full p-2 rounded-md border border-background-tertiary" type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-            <input className="w-full p-2 rounext-accentded-md border border-background-tertiary" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button className="w-full p-2 rounded-md bg-brand-primary text-white cursor-pointer hover:bg-accent" disabled={isLoginPending} onClick={() => {
+    <AccountLayout title="Welcome back" description="Sign in to join your conversations.">
+        <div className="flex w-full flex-col gap-4">
+            <label className="flex flex-col gap-2 text-[13px] font-medium">Username
+              <input autoComplete="username" className="w-full rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-2.5 text-[13px] leading-5 outline-none placeholder:text-foreground-muted focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20" type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-2 text-[13px] font-medium">Password
+              <input autoComplete="current-password" className="w-full rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-2.5 text-[13px] leading-5 outline-none placeholder:text-foreground-muted focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+            <button className="w-full rounded-[2px] bg-brand-primary px-4 py-2.5 text-[13px] font-medium leading-5 text-white cursor-pointer transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50" disabled={isLoginPending} onClick={() => {
               handleLogin()
             }}>Login</button>
-            {error && <p className="text-sm text-error">{error}</p>}
-            <Link to="/register" className="text-sm text-foreground-muted cursor-pointer">Don't have an account? Register</Link>
+            {error && <p role="alert" className="text-[13px] leading-5 text-error">{error}</p>}
+            <Link to="/register" className="self-start rounded-[2px] text-[13px] text-foreground-muted underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary">Don't have an account? Register</Link>
         </div>
-    </div>
+    </AccountLayout>
   )
 }
 

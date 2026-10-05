@@ -1,47 +1,28 @@
 import { Authenticated, Unauthenticated, useQuery } from '@tetherdb/react'
-import { useNavigate } from 'react-router'
-import './App.css'
+import { Link } from 'react-router'
+import AccountLayout from './pages/AccountLayout'
 
 function UserInfo() {
   const { data: userInfo } = useQuery('getUserInfo')
-  return (
-    <p className="text-sm text-foreground-muted">
-      Welcome, {userInfo?.Username}
-    </p>
-  )
+  return <p className="text-[13px] text-foreground-muted">Welcome, {userInfo?.Username}</p>
 }
 
 function App() {
-  const navigate = useNavigate()
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-background">
+    <AccountLayout title="Tether Chat" description="A shared space for your team’s conversations.">
       <Authenticated>
-        <div className="flex flex-col items-center justify-center h-screen bg-background">
-          <h2 className="text-2xl font-bold">Welcome to Tether Chat</h2>
-          <p className="text-sm text-foreground-muted">Please enter your username and password to login</p>
-          <div className="flex flex-col items-center justify-center gap-4 mt-4">
-            <UserInfo />
-            <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={() => {
-              navigate('/chat')
-            }}>Enter Chat</button>
-          </div>
+        <div className="flex flex-col gap-4">
+          <UserInfo />
+          <Link to="/chat" className="inline-flex items-center justify-center rounded-[2px] bg-brand-primary px-4 py-2.5 text-[13px] font-medium leading-5 text-white transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary">Enter chat</Link>
         </div>
       </Authenticated>
       <Unauthenticated>
-        <div className="flex flex-col items-center justify-center h-screen bg-background">
-          <h2 className="text-2xl font-bold">Welcome to Tether Chat</h2>
-          <p className="text-sm text-foreground-muted">Please register or login to continue</p>
-          <div className="flex flex-row items-center justify-center gap-4 mt-4">
-            <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={() => {
-              navigate('/register')
-            }}>Register</button>
-            <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={() => {
-              navigate('/login')
-            }}>Login</button>
-          </div>
+        <div className="flex items-center gap-3">
+          <Link to="/login" className="inline-flex flex-1 items-center justify-center rounded-[2px] bg-brand-primary px-4 py-2.5 text-[13px] font-medium leading-5 text-white transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary">Login</Link>
+          <Link to="/register" className="inline-flex flex-1 items-center justify-center rounded-[2px] border border-background-tertiary bg-background-secondary px-4 py-2.5 text-[13px] font-medium leading-5 transition-colors hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary">Register</Link>
         </div>
       </Unauthenticated>
-    </div>
+    </AccountLayout>
   )
 }
 

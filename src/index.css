@@ -32,19 +32,3 @@
   from { transform: translateX(-100%); }
   to { transform: translateX(400%); }
 }
-
-@layer base {
-  :root,
-  :root[data-theme=""],
-  :root[data-theme="system"] {
-    color-scheme: light dark;
-  }
-
-  :root[data-theme="light"] {
-    color-scheme: light;
-  }
-
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-  }
-}

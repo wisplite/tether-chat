@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useTether } from '@tetherdb/react'
-import { Outlet, useParams } from 'react-router'
-import { CaretRightIcon, PlusIcon, GearIcon } from '@phosphor-icons/react'
+import { Link, Outlet, useParams } from 'react-router'
+import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
 import ChatModal from './ChatModal'
 
 function CreateChannel({ onClose }: { onClose: () => void }) {
@@ -21,40 +20,31 @@ function CreateChannel({ onClose }: { onClose: () => void }) {
         }
     }
     return (
-        <div className="flex flex-col items-start justify-start gap-2">
-            <input type="text" placeholder="Channel Name" id="channelName" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
+        <div className="flex w-full flex-col items-start gap-4">
+            <input aria-label="Channel name" className="w-full rounded-[2px] border border-background-tertiary bg-background px-3 py-2.5 text-sm outline-none placeholder:text-foreground-muted focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20" type="text" placeholder="Channel name" id="channelName" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
             <div className="flex flex-row items-center justify-start gap-2">
-                <label htmlFor="isPrivate" className="text-sm font-bold text-foreground-muted">Is Private</label>
-                <input type="checkbox" placeholder="Is Private" id="isPrivate" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+                <label htmlFor="isPrivate" className="text-[13px] font-medium text-foreground">Private channel</label>
+                <input className="size-4 accent-brand-primary" type="checkbox" id="isPrivate" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
             </div>
-            <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={createChannel}>Create</button>
+            <button className="inline-flex items-center justify-center bg-brand-primary text-white px-4 py-2 rounded-[2px] text-[13px] leading-5 font-medium cursor-pointer transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50" onClick={createChannel}>Create</button>
         </div>
     )
 }
 
 function ChannelItem({ channel }: { channel: any }) {
-    const navigate = useNavigate()
     const { channelId } = useParams()
     const { prefetch } = useTether()
-    const [isHovered, setIsHovered] = useState(false)
     const [channelName, setChannelName] = useState(channel.Name)
     const [isPrivate, setIsPrivate] = useState(channel.IsPrivate)
     const [channelSettingsModalOpen, setChannelSettingsModalOpen] = useState(false)
     const updateChannelMutation = useMutation('updateChannel')
     const deleteChannelMutation = useMutation('deleteChannel')
-    const navigateToChannel = () => {
-        navigate(`/chat/${channel.ID}`)
-    }
     const handleMouseEnter = async () => {
-        setIsHovered(true)
         const { ready } = prefetch('getMessages', { channelID: channel.ID, StartCursor: null, EndCursor: null })
         const data = await ready;
-        const { ready: readyStaticFrame } = prefetch('getMessages', { channelID: channel.ID, StartCursor: data.StartCursor, EndCursor: data.EndCursor })
+        prefetch('getMessages', { channelID: channel.ID, StartCursor: data.StartCursor, EndCursor: data.EndCursor })
         prefetch('getChannelMembers', { channelID: channel.ID })
         prefetch('getChannel', { channelID: channel.ID })
-    }
-    const handleMouseLeave = () => {
-        setIsHovered(false)
     }
     const updateChannel = async () => {
         const result = await updateChannelMutation.mutate({
@@ -77,18 +67,24 @@ function ChannelItem({ channel }: { channel: any }) {
         }
     }
     return (
-        <div className={`flex flex-row items-center justify-between w-full rounded-md cursor-pointer py-1 px-2 ${channelId === channel.ID ? 'bg-foreground-ultra-muted' : 'hover:bg-foreground-muted-hover'}`} key={channel.ID} onClick={navigateToChannel} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-            <p className="text-md font-bold text-foreground-muted"># {channel.Name}</p>
-            {isHovered && <button className="text-sm font-bold text-foreground-muted cursor-pointer" onClick={() => {setChannelSettingsModalOpen(true)}}><GearIcon size={16} /></button>}
+        <div className="group relative w-full" key={channel.ID} onMouseEnter={handleMouseEnter}>
+            <Link to={`/chat/${channel.ID}`} aria-current={channelId === channel.ID ? 'page' : undefined} className={`flex min-h-8 w-full items-center gap-2.5 rounded-[2px] py-1.5 pl-2.5 pr-9 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand-primary ${channelId === channel.ID ? 'bg-accent-light text-foreground' : 'text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground'}`}>
+                <span className={`h-4 w-[3px] shrink-0 ${channelId === channel.ID ? 'bg-accent' : 'bg-transparent'}`} />
+                {channel.IsPrivate ? <LockSimpleIcon size={16} className="shrink-0 text-foreground-muted" /> : <HashIcon size={16} className={`shrink-0 ${channelId === channel.ID ? 'text-accent' : 'text-foreground-muted'}`} />}
+                <span className="truncate">{channel.Name}</span>
+            </Link>
+            <button aria-label={`Settings for ${channel.Name}`} className="absolute right-1 top-0.5 flex size-7 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100" onClick={() => setChannelSettingsModalOpen(true)}><GearIcon size={16} /></button>
             <ChatModal title="Channel Settings" open={channelSettingsModalOpen} onClose={() => setChannelSettingsModalOpen(false)} children={
-                <div className="flex flex-col items-start justify-start gap-2">
-                    <p className="text-sm font-bold text-foreground-muted">Channel Name</p>
-                    <input type="text" placeholder="Channel Name" id="channelName" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
-                    <p className="text-sm font-bold text-foreground-muted">Is Private</p>
-                    <input type="checkbox" placeholder="Is Private" id="isPrivate" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+                <div className="flex w-full flex-col items-start gap-4">
+                    <p className="text-[13px] font-medium text-foreground">Channel Name</p>
+                    <input aria-label="Channel name" className="w-full rounded-[2px] border border-background-tertiary bg-background px-3 py-2.5 text-sm outline-none placeholder:text-foreground-muted focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20" type="text" placeholder="Channel name" id="channelName" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
+                    <label className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                        <input className="size-4 accent-brand-primary" type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+                        Private channel
+                    </label>
                     <div className="flex flex-row items-center justify-between gap-2 w-full">
-                        <button className="bg-brand-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-accent" onClick={updateChannel}>Update</button>
-                        <button className="bg-error text-white px-4 py-2 rounded-md cursor-pointer hover:bg-error-hover" onClick={deleteChannel}>Delete</button>
+                        <button className="inline-flex items-center justify-center bg-brand-primary text-white px-4 py-2 rounded-[2px] text-[13px] leading-5 font-medium cursor-pointer transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50" onClick={updateChannel}>Update</button>
+                        <button className="rounded-[2px] border border-error/20 bg-error/5 px-4 py-2 text-[13px] leading-5 font-medium text-error cursor-pointer hover:bg-error/10 focus-visible:outline-2 focus-visible:outline-error" onClick={deleteChannel}>Delete</button>
                     </div>
                 </div>
             } />
@@ -99,9 +95,9 @@ function ChannelItem({ channel }: { channel: any }) {
 function UserItem({ user }: { user: any }) {
     const tether = useTether()
     return (
-        <div className="flex flex-row items-center justify-start w-full rounded-md cursor-pointer gap-1" key={user.ID}>
-            <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt={user.Username} className="w-8 h-8 rounded-full" />
-            <p className="text-md font-bold text-foreground-muted p-1">{user.Username}</p>
+        <div className="flex min-w-0 w-full items-center gap-3 px-3 py-2" key={user.ID}>
+            <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt={user.Username} className="size-7 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
+            <p className="truncate text-[13px] font-medium text-foreground">{user.Username}</p>
         </div>
     )
 }
@@ -119,36 +115,43 @@ export default function ChatSidebars() {
         setCreateChannelModalOpen(!createChannelModalOpen)
     }
     return (
-        <div className="flex flex-row items-center justify-center h-screen bg-background">
-            <div className="flex flex-col items-start justify-start h-screen w-1/5 bg-background-secondary p-2">
-                <h2 className="text-lg text-center font-bold text-foreground-muted border-b border-foreground-ultra-muted pb-2 w-full">Channels</h2>
-                <div className="flex flex-row items-center justify-between gap-2 w-full mt-4">
-                    <div className="flex flex-row items-center justify-center gap-2 cursor-pointer" onClick={toggleChannelListOpen}>
-                        <p className="text-sm font-bold text-foreground-muted">Text Channels</p>
-                        <CaretRightIcon className={`text-foreground-muted transition-transform duration-300 ${channelListOpen ? 'rotate-90' : 'rotate-0'}`} size={16} />
+        <div className="flex h-dvh w-full overflow-hidden bg-background">
+            <aside aria-label="Channels" className="flex h-full w-36 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary sm:w-[200px]">
+                <Link to="/" className="flex h-[88px] shrink-0 items-center gap-2.5 border-b border-background-tertiary px-4 text-base font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-brand-primary sm:px-5">
+                    <ChatCircleIcon size={22} weight="fill" className="shrink-0 text-brand-primary" />
+                    <span>Tether<span className="mt-0.5 block text-[11px] font-medium tracking-normal text-foreground-muted">Chat workspace</span></span>
+                </Link>
+                <div className="flex items-center justify-between gap-1 px-3 pb-2 pt-4">
+                    <button className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-[2px] text-xs font-medium text-foreground-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleChannelListOpen} aria-expanded={channelListOpen}>
+                        <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
+                        <span>Channels</span>
+                    </button>
+                    <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>
+                </div>
+                <div className={`min-h-0 flex-1 overflow-y-auto px-2 ${channelListOpen ? '' : 'hidden'}`}>
+                    <div className="flex flex-col gap-0.5">
+                        {channels?.map((channel: any) => <ChannelItem key={channel.ID} channel={channel} />)}
+                        {channels?.length === 0 && <p className="px-3 py-2 text-xs leading-5 text-foreground-muted">Create a channel to start a conversation.</p>}
                     </div>
-                    <button className="text-sm font-bold text-foreground-muted cursor-pointer" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>
-                    <ChatModal title="Create Channel" open={createChannelModalOpen} onClose={() => setCreateChannelModalOpen(false)} children={
-                        <CreateChannel onClose={() => setCreateChannelModalOpen(false)} />
-                    } />
                 </div>
-                <div className={`flex flex-col items-start justify-start gap-1 w-full pt-2 ${channelListOpen ? '' : 'hidden'}`}>
-                {channels?.map((channel: any) => (
-                        <ChannelItem key={channel.ID} channel={channel} />
-                    ))}
+                <div className="mt-auto border-t border-background-tertiary px-4 py-3 font-mono text-[11px] text-foreground-muted sm:px-5">Tether Chat</div>
+            </aside>
+            <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+                <Outlet />
+            </main>
+            <aside aria-label="Channel members" className="hidden h-full w-[200px] shrink-0 flex-col border-l border-background-tertiary bg-background-secondary lg:flex">
+                <div className="flex h-[88px] shrink-0 items-center justify-between border-b border-background-tertiary px-5">
+                    <h2 className="text-[13px] font-semibold">Members</h2>
+                    <span className="font-mono text-xs text-foreground-muted">{users?.length ?? 0}</span>
                 </div>
-            </div>
-            <div className="flex h-screen min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-            <Outlet />
-            </div>
-            <div className="flex flex-col items-start justify-start h-screen w-1/5 bg-background-secondary p-2">
-                <h2 className="text-lg text-center font-bold text-foreground-muted border-b border-foreground-ultra-muted pb-2 w-full">Users</h2>
-                <div className="flex flex-col items-start justify-start gap-2 w-full pt-2">
-                    {users?.map((user: any) => (
-                        <UserItem key={user.ID} user={user} />
-                    ))}
+                <div className="min-h-0 overflow-y-auto px-2 py-3">
+                    {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
+                    {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
                 </div>
-            </div>
+            </aside>
+            <ChatModal title="Create channel" open={createChannelModalOpen} onClose={() => setCreateChannelModalOpen(false)}>
+                <CreateChannel onClose={() => setCreateChannelModalOpen(false)} />
+            </ChatModal>
         </div>
     )
 }

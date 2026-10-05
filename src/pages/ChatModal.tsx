@@ -40,22 +40,22 @@ export default function ChatModal({ open, onClose, title, children }: ChatModalP
       onClose={onClose}
       onClick={handleBackdropClick}
       aria-labelledby={titleId}
-      className="m-auto w-full max-w-md rounded-lg border border-background-tertiary bg-background p-0 text-foreground shadow-lg backdrop:bg-foreground/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] rounded-[2px] border border-background-tertiary bg-background-secondary p-0 text-foreground shadow-lg backdrop:bg-black/50"
     >
-      <div className="flex flex-row items-center justify-between gap-4 border-b border-foreground-ultra-muted px-4 py-3">
-        <h2 id={titleId} className="text-lg font-bold">
+      <div className="flex flex-row items-center justify-between gap-4 border-b border-background-tertiary px-5 py-4">
+        <h2 id={titleId} className="text-base font-semibold tracking-tight">
           {title}
         </h2>
         <button
           type="button"
           aria-label="Close"
-          className="cursor-pointer text-foreground-muted hover:text-foreground"
+          className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary"
           onClick={onClose}
         >
           <XIcon size={16} />
         </button>
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </dialog>
   )
 }
