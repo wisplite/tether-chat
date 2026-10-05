@@ -14,9 +14,10 @@ import (
 	"github.com/dicebear/styles/v10"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"github.com/recodeorg/tether"
 	"github.com/recodeorg/tether/storage"
-	"github.com/recodeorg/tether/storage/local"
+	"github.com/recodeorg/tether/storage/s3"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -72,6 +73,13 @@ type Message struct {
 	UpdatedAt   time.Time
 }
 
+type AttachmentMetadata struct {
+	ID        string `gorm:"primaryKey"`
+	Filename  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Auth struct{}
 
 func (a *Auth) VerifyToken(ctx context.Context, db *gorm.DB, token string) (string, time.Time, error) {
@@ -83,6 +91,10 @@ func (a *Auth) VerifyToken(ctx context.Context, db *gorm.DB, token string) (stri
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		panic("failed to load environment variables")
+	}
 	db, err := gorm.Open(sqlite.Open("tether.db"), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
@@ -99,13 +111,17 @@ func main() {
 	engine.CreateTable(&Channel{})
 	engine.CreateTable(&ChannelMember{})
 	engine.CreateTable(&Message{})
+	engine.CreateTable(&AttachmentMetadata{})
 
-	localStorage, err := local.New("uploads")
+	s3Storage, err := s3.New(context.Background(), s3.Config{
+		Region:   "auto",
+		Endpoint: "https://2203f5be0b0d981e27566cb0327d7002.r2.cloudflarestorage.com/tether-chat",
+	})
 	if err != nil {
 		panic("failed to create storage")
 	}
 
-	engine.SetStorage(localStorage, "/storage")
+	engine.SetStorage(s3Storage, "/storage")
 
 	engine.SetCheckOrigin(func(r *http.Request) bool {
 		return true
@@ -453,13 +469,20 @@ func main() {
 		}
 		messagesWithUsers := make([]map[string]any, 0, len(messages))
 		for _, message := range messages {
-			attachments := []string{}
-			for _, attachment := range message.Attachments {
-				downloadURL, err := ctx.Storage.GetDownloadURL(attachment, storage.WithDownloadExpiresIn(time.Hour*24), storage.UseCachedURLs())
-				if err != nil {
-					return nil, errors.New("failed to get download URL")
+			attachments := []map[string]any{}
+			for _, attachmentID := range message.Attachments {
+				attachment := &AttachmentMetadata{}
+				if err := ctx.DB.Where("id = ?", attachmentID).First(attachment).Error; err != nil {
+					continue
 				}
-				attachments = append(attachments, downloadURL)
+				downloadURL, err := ctx.Storage.GetDownloadURL(attachmentID, storage.WithDownloadExpiresIn(time.Hour*24), storage.UseCachedURLs())
+				if err != nil {
+					continue
+				}
+				attachments = append(attachments, map[string]any{
+					"url":      downloadURL,
+					"filename": attachment.Filename,
+				})
 			}
 			for _, user := range users {
 				if message.UserID == user.ID {
@@ -593,13 +616,29 @@ func main() {
 		if !ok {
 			raw = []any{}
 		}
-		attachments := make([]string, 0, len(raw))
+		attachments := make([]AttachmentMetadata, 0, len(raw))
+		attachmentIDs := make([]string, 0, len(raw))
 		for _, attachment := range raw {
-			attachmentString, ok := attachment.(string)
+			attachmentMetadata, ok := attachment.(map[string]any)
 			if !ok {
-				return nil, errors.New("attachments must be strings")
+				return nil, errors.New("attachments must be maps")
 			}
-			attachments = append(attachments, attachmentString)
+			id, ok := attachmentMetadata["id"].(string)
+			if !ok {
+				return nil, errors.New("id is required")
+			}
+			filename, ok := attachmentMetadata["filename"].(string)
+			if !ok {
+				return nil, errors.New("filename is required")
+			}
+			timestamp := time.Now()
+			attachments = append(attachments, AttachmentMetadata{
+				ID:        id,
+				Filename:  filename,
+				CreatedAt: timestamp,
+				UpdatedAt: timestamp,
+			})
+			attachmentIDs = append(attachmentIDs, id)
 		}
 		isChannelMember, err := ctx.Auth.ExecuteGuard("isChannelMember", map[string]any{
 			"channelID": channelID,
@@ -623,9 +662,17 @@ func main() {
 			ChannelID:   channelID,
 			UserID:      userID,
 			Content:     message,
-			Attachments: attachments,
+			Attachments: attachmentIDs,
 		}
-		if err := ctx.DB.Create(messageModel).Error; err != nil {
+		err = ctx.DB.Transaction(func(tx *gorm.DB) error {
+			for _, attachment := range attachments {
+				if err := tx.Create(&attachment).Error; err != nil {
+					return err
+				}
+			}
+			return tx.Create(messageModel).Error
+		})
+		if err != nil {
 			return nil, errors.New("failed to send message")
 		}
 		return messageModel, nil
@@ -649,7 +696,7 @@ func main() {
 		if !isChannelMemberBool {
 			return nil, errors.New("unauthorized")
 		}
-		fileInfo, err := ctx.Storage.GetUploadURL(storage.WithMaxBytes(1024 * 1024 * 50))
+		fileInfo, err := ctx.Storage.GetUploadURL(storage.WithMaxBytes(1024 * 1024 * 500))
 		if err != nil {
 			return nil, errors.New("failed to get upload URL")
 		}

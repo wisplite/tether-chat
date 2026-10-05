@@ -28,6 +28,11 @@
   overflow-anchor: none;
 }
 
+@keyframes download-indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}
+
 @layer base {
   :root,
   :root[data-theme=""],
