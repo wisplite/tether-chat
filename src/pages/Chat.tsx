@@ -194,6 +194,7 @@ function MessageBox({ channel, onSendMessage }: { channel: any, onSendMessage: (
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const messageInputRef = useRef<HTMLTextAreaElement>(null)
   const tether = useTether()
   const sendMessageMutation = useMutation('sendMessage')
   const uploadFileMutation = useMutation('uploadFile')
@@ -250,8 +251,14 @@ function MessageBox({ channel, onSendMessage }: { channel: any, onSendMessage: (
   const openFilePicker = () => {
     fileInputRef.current?.click()
   }
+  useLayoutEffect(() => {
+    const el = messageInputRef.current
+    if (!el) return
+    el.style.height = '0px'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [message])
   return (
-    <div className="flex w-full flex-col gap-3 rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-3 transition-colors focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20">
+    <div className="flex w-full flex-col gap-3 rounded-[2px] border border-background-tertiary bg-background-secondary p-2 transition-colors focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20">
       {files.length > 0 && (
         <div className="flex flex-row overflow-x-auto items-center justify-start gap-2 w-full">
           {files.map((item) => {
@@ -282,16 +289,26 @@ function MessageBox({ channel, onSendMessage }: { channel: any, onSendMessage: (
           e.target.value = ''
         }}
       />
-      <div className="flex flex-row items-center justify-start gap-2 w-full">
+      <div className="flex flex-row items-end justify-start gap-2 w-full">
         <button aria-label="Attach files" className="size-8 shrink-0 rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover flex items-center justify-center cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-primary disabled:opacity-50" disabled={uploading} onClick={openFilePicker}>
           <PlusIcon className="size-5" />
         </button>
-        <input aria-label={`Message ${channel.Name}`} type="text" placeholder={`Message #${channel.Name}`} className="min-w-0 flex-1 bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-foreground-muted" disabled={uploading} value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-            sendMessage()
-          }
-        }}/>
-        <button type="button" aria-label="Send message" disabled={uploading || sendMessageMutation.isPending || (!message.trim() && files.length === 0)} onClick={sendMessage} className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] bg-brand-primary text-white transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-40"><PaperPlaneTiltIcon size={17} /></button>
+        <textarea
+          ref={messageInputRef}
+          aria-label={`Message ${channel.Name}`}
+          rows={1}
+          placeholder={`Message #${channel.Name}`}
+          className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-sm leading-5 outline-none placeholder:text-foreground-muted"
+          disabled={uploading}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              sendMessage()
+            }
+          }}
+        />
       </div>
     </div>
   )
@@ -334,15 +351,43 @@ function AttachmentItem({ attachment: { url, filename }, onMouseEnter, onMouseLe
   }
 }
 
-function MessageItem({ message, user, compact }: { message: any, user: any, compact: boolean }) {
+function MessageItem({ message, user, compact, edited }: { message: any, user: any, compact: boolean, edited: boolean }) {
   const tether = useTether()
   const [isHovered, setIsHovered] = useState(false)
   const [isAttachmentHovered, setIsAttachmentHovered] = useState(false)
   const showHover = isHovered && !isAttachmentHovered
   const [isEditing, setIsEditing] = useState(false)
+  const editInputRef = useRef<HTMLTextAreaElement>(null)
   const deleteMessageMutation = useMutation('deleteMessage')
   const editMessageMutation = useMutation('editMessage')
   const [messageContent, setMessageContent] = useState(message.Content)
+  useLayoutEffect(() => {
+    if (!isEditing) return
+    const el = editInputRef.current
+    if (!el) return
+    const end = el.value.length
+    el.setSelectionRange(end, end)
+  }, [isEditing])
+  useLayoutEffect(() => {
+    if (!isEditing) return
+    const el = editInputRef.current
+    if (!el) return
+    el.style.height = '0px'
+    el.style.height = `${el.scrollHeight}px`
+  }, [isEditing, messageContent])
+  const cancelEdit = () => {
+    setMessageContent(message.Content)
+    setIsEditing(false)
+  }
+  const saveEdit = async () => {
+    if (editMessageMutation.isPending) return
+    const response = await editMessageMutation.mutate({ messageID: message.ID, message: messageContent })
+    if (response.error) {
+      console.error(response.error)
+      return
+    }
+    setIsEditing(false)
+  }
   let time = new Date(message.CreatedAt).toLocaleTimeString();
   if (isYesterdayOrOlder(new Date(message.CreatedAt))) {
     time = new Date(message.CreatedAt).toLocaleDateString("en-US", { month: 'numeric', day: 'numeric', year: '2-digit' }) + ', ' + new Date(message.CreatedAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
@@ -350,7 +395,7 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
     time = new Date(message.CreatedAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
   }
   return (
-    <div className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-background-secondary' : ''} w-full px-4 sm:px-6 gap-3 ${compact ? 'py-0.5' : 'pt-3 pb-0.5 mt-3'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>
+    <div className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-background-secondary' : ''} w-full px-2 gap-3 ${compact ? 'py-0.5' : 'pt-3 pb-0.5 mt-3'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>
       {!compact && (
         <div className="w-8 shrink-0 pt-0.5">
           <img src={tether.url.replace('/tether', '') + user.avatarUrl} alt={user.username} className="size-8 rounded-[2px] bg-background-tertiary object-cover" />
@@ -358,19 +403,30 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
       )}
       {compact && <div className="w-8 h-6 shrink-0 rounded-full bg-transparent" />}
       <div className="flex flex-col items-start justify-start min-w-0 flex-1">
-        {!compact && <p className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[13px] font-semibold text-foreground">{user.username}<span className="font-mono text-[11px] font-normal text-foreground-muted">{time}</span></p>}
+        {!compact && <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[14px] font-semibold text-foreground">{user.username}<span className="text-[11px] font-normal text-foreground-muted">{time}</span></p>}
         {isEditing ? (
-          <input type="text" aria-label="Edit message" className="w-full max-w-full rounded-[2px] border border-brand-primary bg-background px-2 py-1 text-[13px] leading-5 outline-none ring-2 ring-brand-primary/20" autoFocus value={messageContent} onChange={(e) => setMessageContent(e.target.value)} onKeyDown={async (e) => {
-            if (e.key === 'Enter') {
-              const response = await editMessageMutation.mutate({ messageID: message.ID, message: messageContent })
-              if (response.error) {
-                console.error(response.error)
+          <textarea
+            ref={editInputRef}
+            aria-label="Edit message"
+            rows={1}
+            className="max-h-[50vh] w-full max-w-full resize-none overflow-y-auto rounded-[2px] border border-brand-primary bg-background px-2 py-1 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap outline-none ring-2 ring-brand-primary/20"
+            autoFocus
+            value={messageContent}
+            onChange={(e) => setMessageContent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                cancelEdit()
+                return
               }
-              setIsEditing(false)
-            }
-          }} />
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                saveEdit()
+              }
+            }}
+          />
         ) : (
-          <p className="max-w-full whitespace-pre-wrap wrap-anywhere text-[13px] leading-5">{message.Content}</p>
+          <p className="max-w-full whitespace-pre-wrap wrap-anywhere text-[13px] leading-5">{message.Content}{edited ? <span className="text-[8px] ml-1 font-normal text-foreground-muted"> (edited)</span> : ''}</p>
         )}
         {message.Attachments.length > 0 && (
           <div className="flex flex-row flex-wrap items-start justify-start gap-2 w-full mt-1">
@@ -381,7 +437,7 @@ function MessageItem({ message, user, compact }: { message: any, user: any, comp
         )}
       </div>
       {showHover && !isEditing && <div className="absolute -top-3 right-4 flex items-center rounded-[2px] border border-background-tertiary bg-background p-0.5 gap-0.5 shadow-sm">
-        <button aria-label="Edit message" className="text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {setIsEditing(!isEditing)}}><PencilIcon size={16} /></button>
+        <button aria-label="Edit message" className="text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => { setMessageContent(message.Content); setIsEditing(true) }}><PencilIcon size={16} /></button>
         <button aria-label="Delete message" className="text-error cursor-pointer hover:bg-error/5 size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-error" onClick={() => {deleteMessageMutation.mutate({ messageID: message.ID })}}><TrashIcon size={16} /></button>
       </div>}
     </div>
@@ -484,8 +540,7 @@ export default function Chat() {
 
   if (!channelId) {
     return <div className="flex h-full flex-col">
-      <header className="flex h-[88px] shrink-0 flex-col justify-center gap-1 border-b border-background-tertiary px-4 sm:px-6"><p className="text-xs text-foreground-muted">Tether Chat</p><h1 className="text-2xl font-bold tracking-tight sm:text-[32px] sm:leading-9">Workspace</h1></header>
-      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center"><ChatCircleIcon size={36} className="mb-4 text-brand-primary" /><h2 className="text-lg font-semibold tracking-tight">Your conversations live here</h2><p className="mt-2 max-w-xs text-[13px] leading-5 text-foreground-muted">Select a channel from the sidebar or create one to get started.</p></div>
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center"><p className="mt-2 max-w-xs text-[13px] leading-5 text-foreground-muted">Select a channel from the sidebar or create one to get started.</p></div>
     </div>
   }
   if (channelError) {
@@ -495,13 +550,15 @@ export default function Chat() {
     return <div role="status" className="p-6 text-sm text-foreground-muted">Loading channel…</div>
   }
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background">
-      <header className="flex h-[88px] shrink-0 items-center justify-between gap-4 border-b border-background-tertiary px-4 sm:px-6">
-        <div className="min-w-0"><p className="mb-1 text-xs text-foreground-muted">{channel.IsPrivate ? 'Private channel' : 'Text channel'}</p><h1 className="flex min-w-0 items-center gap-2 text-2xl font-bold tracking-[-0.03em] leading-9 sm:text-[32px]">{channel.IsPrivate ? <LockSimpleIcon size={24} className="shrink-0 text-brand-primary" /> : <HashIcon size={24} className="shrink-0 text-brand-primary" />}<span className="truncate">{channel.Name}</span></h1></div>
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background relative">
+      <header className="flex shrink-0 items-center justify-between border-b border-background-tertiary p-2">
+        <div className="min-w-0">
+          <h1 className="flex min-w-0 items-center gap-1 text-lg font-bold tracking-[-0.03em] leading-9">{channel.IsPrivate ? <LockSimpleIcon size={24} className="shrink-0 text-brand-primary" /> : <HashIcon size={24} className="shrink-0 text-brand-primary" />}<span className="truncate">{channel.Name}</span></h1>
+        </div>
       </header>
       {messagesError && <p role="alert" className="border-b border-error/20 bg-error/5 px-6 py-3 text-error">Unable to load messages: {messagesError.message}</p>}
       <div className="message-scroll flex min-h-0 w-full flex-1 flex-col overflow-y-auto [overflow-anchor:none]" onScroll={handleScroll} ref={containerRef}>
-        <div className="mt-auto flex w-full flex-col pb-5" ref={contentRef}>
+        <div className="mt-auto flex w-full flex-col pb-16" ref={contentRef}>
           {hasMoreMessages && <div ref={ref} className="h-[1px]"></div>}
           {messages?.slice().reverse().map((message: any, index: number) => {
             const prevItem = messages.slice().reverse()[index - 1];
@@ -512,15 +569,15 @@ export default function Chat() {
             const isWithinWindow = currentTime - prevTime <= 1000 * 60 * 5;
 
             const isCompact = isSameAuthor && isWithinWindow;
+            const isEdited = message.message.UpdatedAt !== message.message.CreatedAt;
             return (
-              <MessageItem key={message.message.ID} message={message.message} user={message.user} compact={isCompact} />
+              <MessageItem key={message.message.ID} message={message.message} user={message.user} compact={isCompact} edited={isEdited} />
             )
           })}
         </div>
       </div>
-      <div className="flex w-full shrink-0 flex-col gap-2 border-t border-background-tertiary bg-background px-4 py-4 sm:px-6">
+      <div className="flex w-full shrink-0 flex-col gap-2 bg-transparent p-2 absolute bottom-0 left-0 right-0">
         <MessageBox key={channelId} channel={channel} onSendMessage={setScrollToBottom} />
-        <p className="text-[11px] text-foreground-muted">Enter to send · + to attach files</p>
       </div>
     </div>
   )

@@ -68,8 +68,7 @@ function ChannelItem({ channel }: { channel: any }) {
     }
     return (
         <div className="group relative w-full" key={channel.ID} onMouseEnter={handleMouseEnter}>
-            <Link to={`/chat/${channel.ID}`} aria-current={channelId === channel.ID ? 'page' : undefined} className={`flex min-h-8 w-full items-center gap-2.5 rounded-[2px] py-1.5 pl-2.5 pr-9 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand-primary ${channelId === channel.ID ? 'bg-accent-light text-foreground' : 'text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground'}`}>
-                <span className={`h-4 w-[3px] shrink-0 ${channelId === channel.ID ? 'bg-accent' : 'bg-transparent'}`} />
+            <Link to={`/chat/${channel.ID}`} aria-current={channelId === channel.ID ? 'page' : undefined} className={`flex min-h-8 w-full items-center gap-1.5 rounded-[2px] p-1.5 pr-9 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand-primary ${channelId === channel.ID ? 'bg-accent-light text-foreground' : 'text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground'}`}>
                 {channel.IsPrivate ? <LockSimpleIcon size={16} className="shrink-0 text-foreground-muted" /> : <HashIcon size={16} className={`shrink-0 ${channelId === channel.ID ? 'text-accent' : 'text-foreground-muted'}`} />}
                 <span className="truncate">{channel.Name}</span>
             </Link>
@@ -117,14 +116,10 @@ export default function ChatSidebars() {
     return (
         <div className="flex h-dvh w-full overflow-hidden bg-background">
             <aside aria-label="Channels" className="flex h-full w-36 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary sm:w-[200px]">
-                <Link to="/" className="flex h-[88px] shrink-0 items-center gap-2.5 border-b border-background-tertiary px-4 text-base font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-brand-primary sm:px-5">
-                    <ChatCircleIcon size={22} weight="fill" className="shrink-0 text-brand-primary" />
-                    <span>Tether<span className="mt-0.5 block text-[11px] font-medium tracking-normal text-foreground-muted">Chat workspace</span></span>
-                </Link>
-                <div className="flex items-center justify-between gap-1 px-3 pb-2 pt-4">
-                    <button className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-[2px] text-xs font-medium text-foreground-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleChannelListOpen} aria-expanded={channelListOpen}>
-                        <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
+                <div className="flex items-center justify-between gap-1 px-3 pb-2 pt-2">
+                    <button className="flex min-w-0 pl-1 cursor-pointer items-center gap-1.5 rounded-[2px] text-xs font-medium text-foreground-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleChannelListOpen} aria-expanded={channelListOpen}>
                         <span>Channels</span>
+                        <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
                     </button>
                     <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>
                 </div>
@@ -134,17 +129,12 @@ export default function ChatSidebars() {
                         {channels?.length === 0 && <p className="px-3 py-2 text-xs leading-5 text-foreground-muted">Create a channel to start a conversation.</p>}
                     </div>
                 </div>
-                <div className="mt-auto border-t border-background-tertiary px-4 py-3 font-mono text-[11px] text-foreground-muted sm:px-5">Tether Chat</div>
             </aside>
             <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
                 <Outlet />
             </main>
             <aside aria-label="Channel members" className="hidden h-full w-[200px] shrink-0 flex-col border-l border-background-tertiary bg-background-secondary lg:flex">
-                <div className="flex h-[88px] shrink-0 items-center justify-between border-b border-background-tertiary px-5">
-                    <h2 className="text-[13px] font-semibold">Members</h2>
-                    <span className="font-mono text-xs text-foreground-muted">{users?.length ?? 0}</span>
-                </div>
-                <div className="min-h-0 overflow-y-auto px-2 py-3">
+                <div className="min-h-0 overflow-y-auto px-2 py-2">
                     {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
                     {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
                 </div>

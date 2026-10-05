@@ -82,6 +82,26 @@ type AttachmentMetadata struct {
 
 type Auth struct{}
 
+func attachmentIDsFromMessages(messages []Message) []string {
+	attachmentIDs := []string{}
+	for _, message := range messages {
+		attachmentIDs = append(attachmentIDs, message.Attachments...)
+	}
+	return attachmentIDs
+}
+
+func deleteAttachmentFiles(ctx *tether.MutationCtx, attachmentIDs []string) error {
+	for _, attachmentID := range attachmentIDs {
+		if attachmentID == "" {
+			continue
+		}
+		if err := ctx.Storage.DeleteFile(attachmentID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a *Auth) VerifyToken(ctx context.Context, db *gorm.DB, token string) (string, time.Time, error) {
 	tokenModel := &Token{}
 	if err := db.Where("token = ?", token).First(tokenModel).Error; err != nil {
@@ -492,6 +512,7 @@ func main() {
 							"Content":     message.Content,
 							"Attachments": attachments,
 							"CreatedAt":   message.CreatedAt,
+							"UpdatedAt":   message.UpdatedAt,
 						},
 						"user": map[string]any{ // rebuild the user object to avoid revealing sensitive data
 							"id":        user.ID,
@@ -758,7 +779,26 @@ func main() {
 		if !ok {
 			return nil, errors.New("channelID is required")
 		}
-		if err := ctx.DB.Where("id = ?", channelID).Delete(&Channel{}).Error; err != nil {
+		messages := []Message{}
+		if err := ctx.DB.Where("channel_id = ?", channelID).Find(&messages).Error; err != nil {
+			return nil, errors.New("failed to delete channel")
+		}
+		attachmentIDs := attachmentIDsFromMessages(messages)
+		if err := deleteAttachmentFiles(ctx, attachmentIDs); err != nil {
+			return nil, errors.New("failed to delete attachments")
+		}
+		err = ctx.DB.Transaction(func(tx *gorm.DB) error {
+			if len(attachmentIDs) > 0 {
+				if err := tx.Where("id IN (?)", attachmentIDs).Delete(&AttachmentMetadata{}).Error; err != nil {
+					return err
+				}
+			}
+			if err := tx.Where("channel_id = ?", channelID).Delete(&Message{}).Error; err != nil {
+				return err
+			}
+			return tx.Where("id = ?", channelID).Delete(&Channel{}).Error
+		})
+		if err != nil {
 			return nil, errors.New("failed to delete channel")
 		}
 		return map[string]any{
@@ -792,7 +832,29 @@ func main() {
 		if !isMessageOwnerBool && !isAdminBool {
 			return nil, errors.New("unauthorized")
 		}
-		if err := ctx.DB.Where("id = ?", messageID).Delete(&Message{}).Error; err != nil {
+		message := &Message{}
+		if err := ctx.DB.Where("id = ?", messageID).First(message).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return map[string]any{
+					"success": true,
+				}, nil
+			}
+			return nil, errors.New("failed to delete message")
+		}
+		if len(message.Attachments) > 0 {
+			if err := deleteAttachmentFiles(ctx, message.Attachments); err != nil {
+				return nil, errors.New("failed to delete attachments")
+			}
+		}
+		err = ctx.DB.Transaction(func(tx *gorm.DB) error {
+			if len(message.Attachments) > 0 {
+				if err := tx.Where("id IN (?)", message.Attachments).Delete(&AttachmentMetadata{}).Error; err != nil {
+					return err
+				}
+			}
+			return tx.Where("id = ?", messageID).Delete(&Message{}).Error
+		})
+		if err != nil {
 			return nil, errors.New("failed to delete message")
 		}
 		return map[string]any{
