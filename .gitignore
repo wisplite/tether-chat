@@ -27,3 +27,5 @@ server/uploads/*
 *.db
 *.db-*
 .env
+
+tether-chat
