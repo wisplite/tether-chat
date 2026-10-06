@@ -1,9 +1,163 @@
 import { useQuery, useMutation, useTether } from '@tetherdb/react'
 import { Link, Outlet, useNavigate, useParams } from 'react-router'
 import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import ChatModal from './ChatModal'
 import { ProfileButton, ProfileCard } from './ProfileCard'
+
+const CHANNEL_MIN = 144
+const CHANNEL_MAX = 400
+const CHANNEL_DEFAULT = 200
+const NARROW_CHANNEL_DEFAULT = 144
+const MEMBERS_MIN = 160
+const MEMBERS_MAX = 400
+const MEMBERS_DEFAULT = 200
+// Leave the message column wide enough that the composer and messages stay usable.
+const MAIN_MIN = 320
+const NARROW_LAYOUT = 640
+const MEMBERS_LAYOUT = 1024
+const STORAGE_KEY = 'tether-sidebar-widths'
+
+function clamp(value: number, min: number, max: number) {
+    return Math.min(Math.max(value, min), max)
+}
+
+function fitSidebar(preferred: number, min: number, max: number, container: number, reserved: number) {
+    const upper = Math.min(max, Math.max(min, container - reserved))
+    return Math.round(clamp(preferred, min, upper))
+}
+
+function readStoredWidths(): { channels: number | null, members: number | null } {
+    try {
+        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+        return {
+            channels: Number.isFinite(value.channels) ? value.channels : null,
+            members: Number.isFinite(value.members) ? value.members : null,
+        }
+    } catch {
+        return { channels: null, members: null }
+    }
+}
+
+function persistWidths(channels: number | null, members: number | null) {
+    try {
+        const stored: { channels?: number, members?: number } = {}
+        if (channels !== null) stored.channels = channels
+        if (members !== null) stored.members = members
+        if (stored.channels === undefined && stored.members === undefined) {
+            localStorage.removeItem(STORAGE_KEY)
+        } else {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+        }
+    } catch {
+        // Storage can be unavailable in private mode.
+    }
+}
+
+function SidebarResizeHandle({
+    label,
+    value,
+    min,
+    max,
+    direction,
+    onChange,
+    onReset,
+}: {
+    label: string
+    value: number
+    min: number
+    max: number
+    direction: 1 | -1
+    onChange: (width: number) => void
+    onReset: () => void
+}) {
+    const [dragging, setDragging] = useState(false)
+    const onChangeRef = useRef(onChange)
+    const valueRef = useRef(value)
+    useEffect(() => {
+        onChangeRef.current = onChange
+        valueRef.current = value
+    }, [onChange, value])
+
+    useEffect(() => {
+        if (!dragging) return
+        const previousCursor = document.body.style.cursor
+        const previousUserSelect = document.body.style.userSelect
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+        return () => {
+            document.body.style.cursor = previousCursor
+            document.body.style.userSelect = previousUserSelect
+        }
+    }, [dragging])
+
+    const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) return
+        if (event.detail > 1) {
+            event.preventDefault()
+            onReset()
+            return
+        }
+        event.preventDefault()
+        const handle = event.currentTarget
+        handle.focus()
+        const pointerId = event.pointerId
+        const startX = event.clientX
+        const startWidth = valueRef.current
+        handle.setPointerCapture(pointerId)
+        setDragging(true)
+        const onMove = (moveEvent: PointerEvent) => {
+            if (moveEvent.pointerId !== pointerId) return
+            onChangeRef.current(startWidth + (moveEvent.clientX - startX) * direction)
+        }
+        const onUp = (upEvent: PointerEvent) => {
+            if (upEvent.pointerId !== pointerId) return
+            handle.removeEventListener('pointermove', onMove)
+            handle.removeEventListener('pointerup', onUp)
+            handle.removeEventListener('pointercancel', onUp)
+            setDragging(false)
+        }
+        handle.addEventListener('pointermove', onMove)
+        handle.addEventListener('pointerup', onUp)
+        handle.addEventListener('pointercancel', onUp)
+    }
+
+    const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Home') {
+            event.preventDefault()
+            onChange(min)
+            return
+        }
+        if (event.key === 'End') {
+            event.preventDefault()
+            onChange(max)
+            return
+        }
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        const step = event.shiftKey ? 32 : 16
+        const delta = event.key === 'ArrowRight' ? step : -step
+        onChange(value + delta * direction)
+    }
+
+    return (
+        <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={label}
+            aria-valuemin={min}
+            aria-valuemax={max}
+            aria-valuenow={value}
+            aria-valuetext={`${value} pixels`}
+            tabIndex={0}
+            onPointerDown={onPointerDown}
+            onKeyDown={onKeyDown}
+            className="group relative z-20 -mx-1.5 w-3 shrink-0 cursor-col-resize touch-none outline-none"
+        >
+            <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${dragging ? 'bg-brand-primary' : 'bg-transparent group-hover:bg-brand-primary group-focus-visible:bg-brand-primary'}`} />
+        </div>
+    )
+}
 
 function CreateChannel({ onClose }: { onClose: () => void }) {
     const [channelName, setChannelName] = useState('')
@@ -124,6 +278,66 @@ export default function ChatSidebars() {
     const { data: userInfo } = useQuery('getUserInfo')
     const [channelListOpen, setChannelListOpen] = useState(true)
     const [createChannelModalOpen, setCreateChannelModalOpen] = useState(false)
+    const layoutRef = useRef<HTMLDivElement>(null)
+    const [containerWidth, setContainerWidth] = useState(() => window.innerWidth)
+    const [membersVisible, setMembersVisible] = useState(() => window.matchMedia(`(min-width: ${MEMBERS_LAYOUT}px)`).matches)
+    const [channelPreferred, setChannelPreferred] = useState<number | null>(() => readStoredWidths().channels)
+    const [membersPreferred, setMembersPreferred] = useState<number | null>(() => readStoredWidths().members)
+    const preferredRef = useRef({ channels: channelPreferred, members: membersPreferred })
+    useEffect(() => {
+        preferredRef.current = { channels: channelPreferred, members: membersPreferred }
+    }, [channelPreferred, membersPreferred])
+
+    useLayoutEffect(() => {
+        const layout = layoutRef.current
+        if (!layout) return
+        const update = () => setContainerWidth(layout.clientWidth)
+        update()
+        const observer = new ResizeObserver(update)
+        observer.observe(layout)
+        return () => observer.disconnect()
+    }, [])
+
+    useEffect(() => {
+        const media = window.matchMedia(`(min-width: ${MEMBERS_LAYOUT}px)`)
+        const update = () => setMembersVisible(media.matches)
+        update()
+        media.addEventListener('change', update)
+        return () => media.removeEventListener('change', update)
+    }, [])
+
+    const channelTarget = channelPreferred ?? (containerWidth < NARROW_LAYOUT ? NARROW_CHANNEL_DEFAULT : CHANNEL_DEFAULT)
+    const membersTarget = membersPreferred ?? MEMBERS_DEFAULT
+    const membersReserve = membersVisible ? MEMBERS_MIN : 0
+    const channelWidth = fitSidebar(channelTarget, CHANNEL_MIN, CHANNEL_MAX, containerWidth, MAIN_MIN + membersReserve)
+    const membersWidth = membersVisible
+        ? fitSidebar(membersTarget, MEMBERS_MIN, MEMBERS_MAX, containerWidth, MAIN_MIN + channelWidth)
+        : 0
+    const channelMax = Math.min(CHANNEL_MAX, Math.max(CHANNEL_MIN, containerWidth - MAIN_MIN - membersReserve))
+    const membersMax = Math.min(MEMBERS_MAX, Math.max(MEMBERS_MIN, containerWidth - MAIN_MIN - channelWidth))
+
+    const setChannelWidth = (requested: number) => {
+        const next = fitSidebar(requested, CHANNEL_MIN, CHANNEL_MAX, containerWidth, MAIN_MIN + membersReserve)
+        preferredRef.current.channels = next
+        setChannelPreferred(next)
+        persistWidths(next, preferredRef.current.members)
+    }
+    const setMembersWidth = (requested: number) => {
+        const next = fitSidebar(requested, MEMBERS_MIN, MEMBERS_MAX, containerWidth, MAIN_MIN + channelWidth)
+        preferredRef.current.members = next
+        setMembersPreferred(next)
+        persistWidths(preferredRef.current.channels, next)
+    }
+    const resetChannelWidth = () => {
+        preferredRef.current.channels = null
+        setChannelPreferred(null)
+        persistWidths(null, preferredRef.current.members)
+    }
+    const resetMembersWidth = () => {
+        preferredRef.current.members = null
+        setMembersPreferred(null)
+        persistWidths(preferredRef.current.channels, null)
+    }
     const toggleChannelListOpen = () => {
         setChannelListOpen(!channelListOpen)
     }
@@ -131,11 +345,11 @@ export default function ChatSidebars() {
         setCreateChannelModalOpen(!createChannelModalOpen)
     }
     return (
-        <div className="flex h-dvh w-full overflow-hidden bg-background">
-            <aside aria-label="Channels" className="flex h-full w-36 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary sm:w-[200px]">
+        <div ref={layoutRef} className="flex h-dvh w-full overflow-hidden bg-background">
+            <aside aria-label="Channels" style={{ width: channelWidth }} className="flex h-full min-w-0 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary">
                 <div className="flex items-center justify-between gap-1 px-3 pb-2 pt-2">
                     <button className="flex min-w-0 pl-1 cursor-pointer items-center gap-1.5 rounded-[2px] text-xs font-medium text-foreground-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleChannelListOpen} aria-expanded={channelListOpen}>
-                        <span>Channels</span>
+                        <span className="min-w-0 truncate">Channels</span>
                         <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
                     </button>
                     {userInfo?.Role === 'admin' && <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>}
@@ -172,15 +386,37 @@ export default function ChatSidebars() {
                     </div>
                 </div>
             </aside>
+            <SidebarResizeHandle
+                label="Resize channels sidebar"
+                value={channelWidth}
+                min={CHANNEL_MIN}
+                max={channelMax}
+                direction={1}
+                onChange={setChannelWidth}
+                onReset={resetChannelWidth}
+            />
             <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
                 <Outlet />
             </main>
-            <aside aria-label="Channel members" className="hidden h-full w-[200px] shrink-0 flex-col border-l border-background-tertiary bg-background-secondary lg:flex">
-                <div className="min-h-0 overflow-y-auto px-2 py-2 gap-2 flex flex-col">
-                    {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
-                    {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
-                </div>
-            </aside>
+            {membersVisible && (
+                <>
+                    <SidebarResizeHandle
+                        label="Resize members sidebar"
+                        value={membersWidth}
+                        min={MEMBERS_MIN}
+                        max={membersMax}
+                        direction={-1}
+                        onChange={setMembersWidth}
+                        onReset={resetMembersWidth}
+                    />
+                    <aside aria-label="Channel members" style={{ width: membersWidth }} className="flex h-full min-w-0 shrink-0 flex-col border-l border-background-tertiary bg-background-secondary">
+                        <div className="min-h-0 overflow-y-auto px-2 py-2 gap-2 flex flex-col">
+                            {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
+                            {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
+                        </div>
+                    </aside>
+                </>
+            )}
             <ChatModal title="Create channel" open={createChannelModalOpen} onClose={() => setCreateChannelModalOpen(false)}>
                 <CreateChannel onClose={() => setCreateChannelModalOpen(false)} />
             </ChatModal>
