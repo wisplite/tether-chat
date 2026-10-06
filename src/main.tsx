@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { TetherProvider, useTether } from '@tetherdb/react'
 import './index.css'
 import App from './App.tsx'
@@ -8,6 +8,8 @@ import Login from './pages/Login.tsx'
 import Register from './pages/Register.tsx'
 import ChatSidebars from './pages/ChatSidebars.tsx'
 import Chat from './pages/Chat.tsx'
+import Settings from './pages/Settings.tsx'
+import Profile from './pages/settings/Profile.tsx'
 
 function AutoLogin() {
   const { setToken } = useTether()
@@ -33,6 +35,10 @@ createRoot(document.getElementById('root')!).render(
           <Route element={<ChatSidebars />}>
             <Route path="/chat" element={<Chat />} />
             <Route path="/chat/:channelId" element={<Chat />} />
+          </Route>
+          <Route element={<Settings />}>
+            <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
+            <Route path="/settings/profile" element={<Profile />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useTether } from '@tetherdb/react'
-import { Link, Outlet, useParams } from 'react-router'
+import { Link, Outlet, useNavigate, useParams } from 'react-router'
 import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 import ChatModal from './ChatModal'
@@ -116,6 +116,7 @@ function UserItem({ user }: { user: any }) {
 
 export default function ChatSidebars() {
     const { channelId } = useParams()
+    const navigate = useNavigate()
     const tether = useTether()
     const { data: channels } = useQuery('getChannels')
     const { data: users } = useQuery('getChannelMembers', { channelID: channelId })
@@ -164,7 +165,7 @@ export default function ChatSidebars() {
                                 </ProfileButton>
                             </ProfileCard>
                         ) : <div className="h-8 flex-1" />}
-                        <button className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {}}><GearIcon size={16} /></button>
+                        <button className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {navigate('/settings')}}><GearIcon size={16} /></button>
                     </div>
                 </div>
             </aside>
