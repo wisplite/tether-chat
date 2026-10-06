@@ -138,6 +138,7 @@ export default function ChatSidebars() {
                         <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
                     </button>
                     {userInfo?.Role === 'admin' && <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>}
+                    {userInfo?.Role !== 'admin' && <div className="size-7 shrink-0" />}
                 </div>
                 <div className={`min-h-0 flex-1 flex flex-col gap-0.5 justify-between overflow-y-auto px-2 pb-2 ${channelListOpen ? '' : 'hidden'}`}>
                     <div className="flex flex-col gap-0.5">

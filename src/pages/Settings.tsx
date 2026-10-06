@@ -1,8 +1,5 @@
-import { useQuery, useTether } from '@tetherdb/react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-import { CaretRightIcon, GearIcon, UserIcon, type Icon } from '@phosphor-icons/react'
-import { useState } from 'react'
-import { ProfileButton, ProfileCard } from './ProfileCard'
+import { ArrowLeftIcon, UserIcon, type Icon } from '@phosphor-icons/react'
 
 type Page = {
     name: string
@@ -33,8 +30,6 @@ function PageItem({ page }: { page: Page }) {
 
 function Settings() {
     const navigate = useNavigate()
-    const tether = useTether()
-    const { data: userInfo } = useQuery('getUserInfo')
     return (
         <div className="flex h-dvh w-full overflow-hidden bg-background">
             <aside aria-label="Settings" className="flex h-full w-36 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary sm:w-[200px]">
@@ -44,10 +39,14 @@ function Settings() {
                             <PageItem key={page.path} page={page} />
                         ))}
                     </div>
+                    <button onClick={() => navigate('/chat')} className="rounded-md bg-background-tertiary p-2 text-sm text-foreground hover:bg-background-tertiary/80 cursor-pointer flex flex-row gap-1 items-center justify-center">
+                        <ArrowLeftIcon size={16} className="shrink-0" />
+                        <span className="truncate">Back to Chat</span>
+                    </button>
                 </div>
             </aside>
-            <main className="flex h-full min-h-0 min-w-0 flex-1 items-center justify-center overflow-y-auto bg-background">
-                <div className="w-full max-w-md">
+            <main className="flex h-full w-full flex-1 items-center justify-center overflow-y-auto bg-background">
+                <div className="w-full">
                     <Outlet />
                 </div>
             </main>

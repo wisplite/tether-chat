@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, forwardRef, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useTether } from '@tetherdb/react'
 
@@ -30,6 +30,7 @@ const PRESENCE: Record<string, { label: string, dot: string }> = {
 
 function assetUrl(tetherUrl: string, path?: string) {
   if (!path) return ''
+  if (/^(https?:|blob:|data:)/i.test(path)) return path
   const base = tetherUrl.replace(/\/tether\/?$/, '')
   return base + (path.startsWith('/') ? path : `/${path}`)
 }
@@ -124,17 +125,11 @@ export function ProfileButton({ className, children, label }: { className?: stri
   )
 }
 
-function ProfilePopover({ userId, preview, anchor, popoverId, onClose }: { userId: string, preview?: ProfilePreview, anchor: HTMLElement, popoverId: string, onClose: () => void }) {
-  const tether = useTether()
+export function ProfilePopover({ userId, preview, anchor, popoverId, onClose }: { userId: string, preview?: ProfilePreview, anchor: HTMLElement, popoverId: string, onClose: () => void }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const { data, error } = useQuery('getUser', { userID: userId })
   const user = data ? readProfile(data) : readProfile(preview)
   const displayName = user.nickname || user.username || (data ? 'User' : '')
-  const handle = user.username && user.username !== displayName ? user.username : ''
-  const presence = PRESENCE[(user.presence ?? '').toLowerCase()]
-  const isAdmin = user.role === 'admin'
-  const joined = formatJoined(user.createdAt)
-  const avatarSrc = assetUrl(tether.url, user.avatarUrl)
 
   useLayoutEffect(() => {
     const popover = popoverRef.current
@@ -194,15 +189,40 @@ function ProfilePopover({ userId, preview, anchor, popoverId, onClose }: { userI
   }, [anchor, onClose])
 
   return createPortal(
-    <div
+    <ProfileCardView
       ref={popoverRef}
       id={popoverId}
       role="dialog"
       tabIndex={-1}
       style={{ left: 0, top: 0 }}
       aria-label={displayName ? `${displayName} profile` : 'Profile'}
-      className="fixed z-50 w-[280px] max-h-[min(440px,calc(100dvh-16px))] overflow-y-auto rounded-[2px] border border-background-tertiary bg-background-secondary text-foreground shadow-lg outline-none"
-    >
+      className="fixed z-50 outline-none"
+      profile={user}
+      fallbackName={data ? 'User' : undefined}
+      alert={error && !data ? 'Unable to load profile.' : undefined}
+    />,
+    document.body,
+  )
+}
+
+type ProfileCardViewProps = {
+  profile: ProfilePreview
+  fallbackName?: string
+  alert?: string
+} & ComponentProps<'div'>
+
+export const ProfileCardView = forwardRef<HTMLDivElement, ProfileCardViewProps>(function ProfileCardView({ profile, fallbackName, alert, className, ...rest }, ref) {
+  const tether = useTether()
+  const user = readProfile(profile)
+  const displayName = user.nickname || user.username || fallbackName || ''
+  const handle = user.username && user.username !== displayName ? user.username : ''
+  const presence = PRESENCE[(user.presence ?? '').toLowerCase()]
+  const isAdmin = user.role === 'admin'
+  const joined = formatJoined(user.createdAt)
+  const avatarSrc = assetUrl(tether.url, user.avatarUrl)
+
+  return (
+    <div ref={ref} className={`w-[280px] max-h-[min(440px,calc(100dvh-16px))] overflow-y-auto rounded-[2px] border border-background-tertiary bg-background-secondary text-foreground shadow-lg ${className ?? ''}`} {...rest}>
       <div className="h-16 bg-brand-primary" />
       <div className="px-4 pb-4">
         <div className="relative -mt-8 size-16">
@@ -247,9 +267,8 @@ function ProfilePopover({ userId, preview, anchor, popoverId, onClose }: { userI
             <p className="mt-1 text-[13px] leading-5">{joined}</p>
           </div>
         )}
-        {error && !data && <p role="alert" className="mt-3 text-[13px] leading-5 text-error">Unable to load profile.</p>}
+        {alert && <p role="alert" className="mt-3 text-[13px] leading-5 text-error">{alert}</p>}
       </div>
-    </div>,
-    document.body,
+    </div>
   )
-}
+})

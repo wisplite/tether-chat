@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
 	"slices"
 	"strings"
 	"time"
@@ -89,6 +90,28 @@ func attachmentIDsFromMessages(messages []Message) []string {
 		attachmentIDs = append(attachmentIDs, message.Attachments...)
 	}
 	return attachmentIDs
+}
+
+const avatarURLPrefix = "/storage/public/"
+
+const maxAvatarBytes = 5 * 1024 * 1024
+
+var allowedAvatarTypes = map[string]struct{}{
+	"image/jpeg": {},
+	"image/png":  {},
+	"image/gif":  {},
+	"image/webp": {},
+}
+
+func publicFileID(url string) (string, bool) {
+	if !strings.HasPrefix(url, avatarURLPrefix) {
+		return "", false
+	}
+	id := strings.TrimPrefix(url, avatarURLPrefix)
+	if id == "" || strings.ContainsAny(id, "/\\") {
+		return "", false
+	}
+	return id, true
 }
 
 func deleteAttachmentFiles(ctx *tether.MutationCtx, attachmentIDs []string) error {
@@ -975,6 +998,101 @@ func main() {
 		return map[string]any{
 			"success": true,
 		}, nil
+	})
+
+	engine.RegisterMutation("uploadAvatar", func(ctx *tether.MutationCtx) (any, error) {
+		if _, err := ctx.Auth.GetIdentity(); err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		fileInfo, err := ctx.Storage.GetUploadURL(storage.Public(), storage.WithMaxBytes(maxAvatarBytes))
+		if err != nil {
+			return nil, errors.New("failed to get upload URL")
+		}
+		return map[string]any{
+			"uploadURL": fileInfo.UploadURL,
+			"fileID":    fileInfo.FileID,
+		}, nil
+	})
+
+	engine.RegisterMutation("updateProfile", func(ctx *tether.MutationCtx) (any, error) {
+		userID, err := ctx.Auth.GetIdentity()
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+
+		user := &User{}
+		if err := ctx.DB.Where("id = ?", userID).First(user).Error; err != nil {
+			return nil, errors.New("failed to get user")
+		}
+		previousAvatar := user.AvatarUrl
+
+		// A missing or null field is left unchanged. A string, including "",
+		// is written as sent, except nickname, which cannot be blank.
+		if raw, exists := ctx.Params["nickname"]; exists && raw != nil {
+			nickname, ok := raw.(string)
+			if !ok {
+				return nil, errors.New("nickname is required")
+			}
+			nickname = strings.TrimSpace(nickname)
+			if nickname == "" {
+				return nil, errors.New("nickname is required")
+			}
+			user.Nickname = nickname
+		}
+		if raw, exists := ctx.Params["status"]; exists && raw != nil {
+			status, ok := raw.(string)
+			if !ok {
+				return nil, errors.New("status must be text")
+			}
+			user.Status = status
+		}
+		if raw, exists := ctx.Params["bio"]; exists && raw != nil {
+			bio, ok := raw.(string)
+			if !ok {
+				return nil, errors.New("bio must be text")
+			}
+			user.Bio = bio
+		}
+		if raw, exists := ctx.Params["avatarFileID"]; exists && raw != nil {
+			fileID, ok := raw.(string)
+			if !ok || strings.TrimSpace(fileID) == "" {
+				return nil, errors.New("photo not found")
+			}
+			record := &tether.TetherStorage{}
+			if err := ctx.DB.Where("id = ? AND status = ? AND public = ?", fileID, "active", true).First(record).Error; err != nil {
+				return nil, errors.New("photo not found")
+			}
+			mediaType, _, err := mime.ParseMediaType(record.MimeType)
+			if err != nil {
+				mediaType = ""
+			}
+			if _, ok := allowedAvatarTypes[mediaType]; !ok {
+				_ = ctx.Storage.DeleteFile(fileID)
+				return nil, errors.New("photo must be a JPEG, PNG, GIF, or WebP image")
+			}
+			user.AvatarUrl = avatarURLPrefix + record.ID
+		}
+
+		if err := ctx.DB.Save(user).Error; err != nil {
+			if user.AvatarUrl != previousAvatar {
+				if id, ok := publicFileID(user.AvatarUrl); ok {
+					_ = ctx.Storage.DeleteFile(id)
+				}
+			}
+			return nil, errors.New("failed to update profile")
+		}
+
+		if user.AvatarUrl != previousAvatar {
+			if id, ok := publicFileID(previousAvatar); ok {
+				var stillUsed int64
+				if err := ctx.DB.Model(&User{}).Where("avatar_url = ?", previousAvatar).Count(&stillUsed).Error; err == nil && stillUsed == 0 {
+					_ = ctx.Storage.DeleteFile(id)
+				}
+			}
+		}
+
+		user.Password = ""
+		return user, nil
 	})
 
 	http.HandleFunc("/tether", engine.Handle)
