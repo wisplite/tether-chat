@@ -37,12 +37,11 @@ export default function Appearance() {
             </section>
             <section className="settings-panel mt-4" aria-labelledby="accent-heading">
                 <h2 id="accent-heading" className="text-base font-semibold">Accent color</h2>
-                <p className="mt-1 text-foreground-muted">Personalize buttons, highlights, and profile banners.</p>
+                <p className="mt-1 text-foreground-muted">Personalize buttons and highlights.</p>
                 <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Accent color">
                     {accents.map(({ value, label, color }) => <button key={value} type="button" aria-pressed={accent === value} onClick={() => update(theme, value)} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-accent ${accent === value ? 'border-accent bg-accent/5' : 'border-background-tertiary hover:bg-foreground-muted-hover'}`}><span className="flex size-5 items-center justify-center rounded-full text-white" style={{ background: color }}>{accent === value && <CheckIcon size={13} />}</span>{label}</button>)}
                 </div>
             </section>
-            <p role="status" className="mt-4 text-foreground-muted">{notice || 'These preferences are saved on this browser.'}</p>
         </div>
     )
 }

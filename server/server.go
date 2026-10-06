@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -103,6 +104,8 @@ var allowedAvatarTypes = map[string]struct{}{
 	"image/gif":  {},
 	"image/webp": {},
 }
+
+var profileColorPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 
 func publicFileID(url string) (string, bool) {
 	if !strings.HasPrefix(url, avatarURLPrefix) {
@@ -581,13 +584,14 @@ func main() {
 							"UpdatedAt":   message.UpdatedAt,
 						},
 						"user": map[string]any{ // rebuild the user object to avoid revealing sensitive data
-							"id":        user.ID,
-							"username":  user.Username,
-							"nickname":  user.Nickname,
-							"avatarUrl": user.AvatarUrl,
-							"role":      user.Role,
-							"status":    user.Status,
-							"presence":  user.Presence,
+							"id":           user.ID,
+							"username":     user.Username,
+							"nickname":     user.Nickname,
+							"avatarUrl":    user.AvatarUrl,
+							"role":         user.Role,
+							"status":       user.Status,
+							"presence":     user.Presence,
+							"profileColor": user.ProfileColor,
 						},
 					})
 					break
@@ -615,14 +619,15 @@ func main() {
 		sanitizedUsers := make([]User, 0, len(users))
 		for _, user := range users {
 			sanitizedUsers = append(sanitizedUsers, User{
-				ID:         user.ID,
-				Username:   user.Username,
-				Nickname:   user.Nickname,
-				AvatarUrl:  user.AvatarUrl,
-				Role:       user.Role,
-				Status:     user.Status,
-				Presence:   user.Presence,
-				LastActive: user.LastActive,
+				ID:           user.ID,
+				Username:     user.Username,
+				Nickname:     user.Nickname,
+				AvatarUrl:    user.AvatarUrl,
+				Role:         user.Role,
+				Status:       user.Status,
+				Presence:     user.Presence,
+				ProfileColor: user.ProfileColor,
+				LastActive:   user.LastActive,
 			})
 		}
 		return sanitizedUsers
@@ -721,15 +726,16 @@ func main() {
 			return nil, errors.New("failed to get user")
 		}
 		sanitizedUser := User{
-			ID:        user.ID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			AvatarUrl: user.AvatarUrl,
-			Role:      user.Role,
-			Status:    user.Status,
-			Presence:  user.Presence,
-			Bio:       user.Bio,
-			CreatedAt: user.CreatedAt,
+			ID:           user.ID,
+			Username:     user.Username,
+			Nickname:     user.Nickname,
+			AvatarUrl:    user.AvatarUrl,
+			Role:         user.Role,
+			Status:       user.Status,
+			Presence:     user.Presence,
+			Bio:          user.Bio,
+			ProfileColor: user.ProfileColor,
+			CreatedAt:    user.CreatedAt,
 		}
 		return sanitizedUser, nil
 	})
@@ -1054,6 +1060,17 @@ func main() {
 				return nil, errors.New("bio must be text")
 			}
 			user.Bio = bio
+		}
+		if raw, exists := ctx.Params["profileColor"]; exists && raw != nil {
+			color, ok := raw.(string)
+			if !ok {
+				return nil, errors.New("profile color must be a hex color like #3d60bb")
+			}
+			color = strings.ToLower(strings.TrimSpace(color))
+			if !profileColorPattern.MatchString(color) {
+				return nil, errors.New("profile color must be a hex color like #3d60bb")
+			}
+			user.ProfileColor = color
 		}
 		if raw, exists := ctx.Params["avatarFileID"]; exists && raw != nil {
 			fileID, ok := raw.(string)

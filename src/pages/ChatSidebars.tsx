@@ -104,6 +104,7 @@ function UserItem({ user }: { user: any }) {
                 role: user.Role,
                 status: user.Status,
                 presence: user.Presence,
+                profileColor: user.ProfileColor,
             }}
         >
             <ProfileButton className="flex min-w-0 w-full cursor-pointer items-center gap-3 rounded-[2px] p-1.5 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
@@ -157,6 +158,7 @@ export default function ChatSidebars() {
                                     status: userInfo.Status,
                                     presence: userInfo.Presence,
                                     bio: userInfo.Bio,
+                                    profileColor: userInfo.ProfileColor,
                                     createdAt: userInfo.CreatedAt,
                                 }}
                             >

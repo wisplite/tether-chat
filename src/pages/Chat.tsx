@@ -408,6 +408,7 @@ function MessageItem({ message, user, compact, edited, canEdit, canDelete }: { m
         role: user.role,
         status: user.status,
         presence: user.presence,
+        profileColor: user.profileColor,
       }}
     >
     <div data-profile-align="" className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-background-secondary' : ''} w-full px-2 gap-3 ${compact ? 'py-0.5' : 'pt-3 pb-0.5 mt-3'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>

@@ -10,7 +10,15 @@ export type ProfilePreview = {
   status?: string
   presence?: string
   bio?: string
+  profileColor?: string
   createdAt?: string
+}
+
+const DEFAULT_PROFILE_COLOR = '#3d60bb'
+
+function bannerColor(value?: string) {
+  const color = (value ?? '').trim()
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : DEFAULT_PROFILE_COLOR
 }
 
 type ProfileContextValue = {
@@ -45,6 +53,7 @@ function readProfile(raw: any): ProfilePreview {
     status: raw.Status ?? raw.status ?? '',
     presence: raw.Presence ?? raw.presence ?? '',
     bio: raw.Bio ?? raw.bio ?? '',
+    profileColor: raw.ProfileColor ?? raw.profileColor ?? '',
     createdAt: raw.CreatedAt ?? raw.createdAt ?? '',
   }
 }
@@ -223,7 +232,7 @@ export const ProfileCardView = forwardRef<HTMLDivElement, ProfileCardViewProps>(
 
   return (
     <div ref={ref} className={`w-[280px] max-h-[min(440px,calc(100dvh-16px))] overflow-y-auto rounded-[2px] border border-background-tertiary bg-background-secondary text-foreground shadow-lg ${className ?? ''}`} {...rest}>
-      <div className="h-16 bg-brand-primary" />
+      <div className="h-16" style={{ backgroundColor: bannerColor(user.profileColor) }} />
       <div className="px-4 pb-4">
         <div className="relative -mt-8 size-16">
           <div className="flex size-16 items-center justify-center overflow-hidden rounded-[2px] border-4 border-background-secondary bg-background-tertiary text-lg font-semibold">

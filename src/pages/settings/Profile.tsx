@@ -5,6 +5,14 @@ import { ProfileCardView, type ProfilePreview } from '../ProfileCard'
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const DEFAULT_PROFILE_COLOR = '#3d60bb'
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{6})$/
+
+function hexColor(value?: string | null) {
+    const color = (value ?? '').trim()
+    const withHash = color.startsWith('#') ? color : `#${color}`
+    return HEX_COLOR.test(withHash) ? withHash.toLowerCase() : ''
+}
 
 function assetUrl(tetherUrl: string, path?: string) {
     if (!path) return ''
@@ -44,21 +52,27 @@ function Profile() {
     const [nickname, setNickname] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
     const [bio, setBio] = useState<string | null>(null)
+    const [profileColor, setProfileColor] = useState<string | null>(null)
+    const [colorDraft, setColorDraft] = useState<string | null>(null)
+    const [colorBlurred, setColorBlurred] = useState(false)
     const [photo, setPhoto] = useState<File | null>(null)
     const [photoUrl, setPhotoUrl] = useState<string | null>(null)
     const [error, setError] = useState('')
     const [saving, setSaving] = useState(false)
     const [feedback, setFeedback] = useState('')
     const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-    const [saved, setSaved] = useState<{ nickname: string, status: string, bio: string } | null>(null)
+    const [saved, setSaved] = useState<{ nickname: string, status: string, bio: string, profileColor: string } | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const seenUserId = useRef<string | undefined>(undefined)
     const avatarBeforeUpload = useRef('')
     const shownNickname = nickname ?? user?.Nickname ?? ''
     const shownBio = bio ?? user?.Bio ?? ''
     const shownStatus = status ?? user?.Status ?? ''
-    const baseline = saved ?? { nickname: user?.Nickname ?? '', status: user?.Status ?? '', bio: user?.Bio ?? '' }
-    const dirty = !!photo || shownNickname !== baseline.nickname || shownStatus !== baseline.status || shownBio !== baseline.bio
+    const shownColor = hexColor(profileColor ?? user?.ProfileColor) || DEFAULT_PROFILE_COLOR
+    const colorText = colorDraft ?? shownColor
+    const colorInvalid = !hexColor(colorText)
+    const baseline = saved ?? { nickname: user?.Nickname ?? '', status: user?.Status ?? '', bio: user?.Bio ?? '', profileColor: hexColor(user?.ProfileColor) || DEFAULT_PROFILE_COLOR }
+    const dirty = !!photo || shownNickname !== baseline.nickname || shownStatus !== baseline.status || shownBio !== baseline.bio || colorText.trim().toLowerCase() !== baseline.profileColor
     const { mutate: updateProfile } = useMutation('updateProfile')
     const { mutate: uploadAvatar } = useMutation('uploadAvatar')
     const previewAvatar = photoUrl ?? user?.AvatarUrl ?? ''
@@ -70,8 +84,9 @@ function Profile() {
         role: user?.Role ?? '',
         status: shownStatus,
         presence: user?.Presence ?? '',
+        profileColor: shownColor,
         createdAt: user?.CreatedAt ?? '',
-    }), [shownNickname, shownBio, shownStatus, previewAvatar, user?.Username, user?.Role, user?.Presence, user?.CreatedAt])
+    }), [shownNickname, shownBio, shownStatus, shownColor, previewAvatar, user?.Username, user?.Role, user?.Presence, user?.CreatedAt])
     const replacePhoto = (file: File | null) => {
         const nextUrl = file ? URL.createObjectURL(file) : null
         setPhoto(file)
@@ -84,6 +99,9 @@ function Profile() {
             setNickname(null)
             setBio(null)
             setStatus(null)
+            setProfileColor(null)
+            setColorDraft(null)
+            setColorBlurred(false)
             replacePhoto(null)
             setError('')
             setSaved(null)
@@ -119,8 +137,14 @@ function Profile() {
     const handleSave = async () => {
         if (saving || !user?.ID || !dirty) return
         const nextNickname = shownNickname.trim()
+        const nextColor = hexColor(colorText)
         if (!nextNickname) {
             setError('Nickname is required.')
+            return
+        }
+        if (!nextColor) {
+            setColorBlurred(true)
+            setError('Profile color must be a hex color like #3d60bb.')
             return
         }
         setSaving(true)
@@ -150,6 +174,7 @@ function Profile() {
                 nickname: nextNickname,
                 status: shownStatus,
                 bio: shownBio,
+                profileColor: nextColor,
                 ...(avatarFileID ? { avatarFileID } : {}),
             })
             if (result.error) {
@@ -159,8 +184,11 @@ function Profile() {
             setNickname(nextNickname)
             setStatus(shownStatus)
             setBio(shownBio)
+            setProfileColor(nextColor)
+            setColorDraft(null)
+            setColorBlurred(false)
             setPhoto(null)
-            setSaved({ nickname: nextNickname, status: shownStatus, bio: shownBio })
+            setSaved({ nickname: nextNickname, status: shownStatus, bio: shownBio, profileColor: nextColor })
             setFeedback('Profile saved successfully.')
         } catch (err) {
             setError(errorMessage(err))
@@ -173,6 +201,9 @@ function Profile() {
         setNickname(baseline.nickname)
         setBio(baseline.bio)
         setStatus(baseline.status)
+        setProfileColor(baseline.profileColor)
+        setColorDraft(null)
+        setColorBlurred(false)
         clearPhoto()
         setError('')
         setFeedback('Changes discarded.')
@@ -235,6 +266,52 @@ function Profile() {
                 <div className="flex flex-col gap-2">
                     <label className="font-medium" htmlFor="bio">Bio</label>
                     <textarea id="bio" rows={4} placeholder="A little about yourself…" value={shownBio} disabled={saving} onChange={(e) => setBio(e.target.value)} className="resize-none rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
+                </div>
+                <div className="flex flex-col gap-2">
+                    <label className="font-medium" htmlFor="profile-color">Profile color</label>
+                    <p id="profile-color-hint" className="text-xs text-foreground-muted">Shown on your profile banner. Pick a color or enter a hex value.</p>
+                    <div className="flex items-center gap-3">
+                        <input
+                            id="profile-color"
+                            type="color"
+                            value={shownColor}
+                            disabled={saving}
+                            aria-describedby="profile-color-hint"
+                            onChange={(e) => { setProfileColor(e.target.value.toLowerCase()); setColorDraft(null); setColorBlurred(false); setError(''); setFeedback('') }}
+                            className="profile-color-input shrink-0"
+                        />
+                        <input
+                            id="profile-color-hex"
+                            type="text"
+                            inputMode="text"
+                            spellCheck={false}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            maxLength={7}
+                            placeholder="#3d60bb"
+                            value={colorText}
+                            disabled={saving}
+                            aria-label="Hex color"
+                            aria-invalid={colorInvalid && colorBlurred}
+                            aria-describedby={colorInvalid && colorBlurred ? 'profile-color-error' : 'profile-color-hint'}
+                            onBlur={() => setColorBlurred(true)}
+                            onChange={(e) => {
+                                const value = e.target.value
+                                const next = hexColor(value)
+                                setError('')
+                                setFeedback('')
+                                if (next) {
+                                    setProfileColor(next)
+                                    setColorDraft(null)
+                                    setColorBlurred(false)
+                                    return
+                                }
+                                setColorDraft(value)
+                            }}
+                            className="w-32 rounded-md border border-background-tertiary bg-background-secondary p-2 font-mono text-sm text-foreground disabled:opacity-50"
+                        />
+                    </div>
+                    {colorInvalid && colorBlurred && <p id="profile-color-error" className="text-xs text-error">Use a hex color like #3d60bb.</p>}
                 </div>
                 <div className="border-t border-background-tertiary pt-4">
                     {error && <p id="profile-error" role="alert" className="mb-3 text-sm text-error">{error}</p>}
