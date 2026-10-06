@@ -27,18 +27,19 @@ import (
 const GormSQLiteTimeLayout = "2006-01-02 15:04:05.999999999-07:00"
 
 type User struct {
-	ID         string `gorm:"primaryKey" tether:"track"`
-	Username   string `gorm:"unique"`
-	Nickname   string
-	Password   string
-	AvatarUrl  string
-	Role       string `gorm:"index" tether:"track"`
-	Status     string
-	Presence   string
-	Bio        string
-	LastActive time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID           string `gorm:"primaryKey" tether:"track"`
+	Username     string `gorm:"unique"`
+	Nickname     string
+	Password     string
+	AvatarUrl    string
+	Role         string `gorm:"index" tether:"track"`
+	Status       string
+	Presence     string
+	Bio          string
+	ProfileColor string
+	LastActive   time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Token struct {
@@ -324,12 +325,13 @@ func main() {
 			return nil, errors.New("failed to hash password")
 		}
 		user := &User{
-			ID:       uuid.New().String(),
-			Username: username,
-			Nickname: username,
-			Bio:      "",
-			Role:     "member",
-			Password: string(hashedPassword),
+			ID:           uuid.New().String(),
+			Username:     username,
+			Nickname:     username,
+			Bio:          "",
+			Role:         "member",
+			ProfileColor: "#3d60bb",
+			Password:     string(hashedPassword),
 		}
 		if err := ctx.DB.Create(user).Error; err != nil {
 			return nil, errors.New("failed to create user")

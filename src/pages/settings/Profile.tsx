@@ -179,7 +179,7 @@ function Profile() {
     }
     if (!user?.ID) return (
         <div className="settings-page">
-            <header className="settings-heading"><h1>Profile</h1><p>Manage how you appear to others in Tether.</p></header>
+            <header className="settings-heading"><h1>Profile</h1><p>Manage how you appear to others.</p></header>
             <div className="settings-panel" role={loadError ? 'alert' : 'status'}>
                 {loadError ? <p className="text-error">Could not load your profile. {errorMessage(loadError)}</p> : <p className="flex items-center gap-2 text-foreground-muted"><CircleNotchIcon className="animate-spin motion-reduce:animate-none" size={18} />Loading your profile…</p>}
             </div>
@@ -187,10 +187,10 @@ function Profile() {
     )
     return (
         <div className="settings-page">
-            <header className="settings-heading"><h1>Profile</h1><p>Manage how you appear to others in Tether.</p></header>
+            <header className="settings-heading"><h1>Profile</h1><p>Manage how you appear to others.</p></header>
             <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_312px]">
             <form onSubmit={(event) => { event.preventDefault(); void handleSave() }} aria-busy={saving} className="settings-panel flex min-w-0 flex-col gap-5">
-                <div><h2 className="text-base font-semibold">Your profile</h2><p className="mt-1 text-foreground-muted">Give your conversations a personal touch.</p></div>
+                <div><h2 className="text-base font-semibold">Your profile</h2></div>
                 <div className="flex items-center gap-3">
                     <button type="button" aria-label="Upload profile photo" disabled={saving} onClick={() => fileInputRef.current?.click()} className="group relative size-16 shrink-0 cursor-pointer overflow-hidden rounded-[2px] border border-background-tertiary bg-background-tertiary focus-visible:outline-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50">
                         {avatarSrc ? (
@@ -249,9 +249,9 @@ function Profile() {
                     </div>
                 </div>
             </form>
-            <aside className="settings-panel flex min-w-0 flex-col gap-3 lg:sticky lg:top-0" aria-label="Profile preview">
-                <div className="flex items-center justify-between"><h2 className="text-base font-semibold">Live preview</h2><span className="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success">Live</span></div>
-                <p className="text-foreground-muted">This is how others will see your profile.</p>
+            <aside className="settings-panel flex min-w-0 flex-col gap-1 lg:sticky lg:top-0" aria-label="Profile preview">
+                <div className="flex items-center justify-between"><h2 className="text-base font-semibold">Live preview</h2></div>
+                <p className="text-foreground-muted mb-3">This is how others will see your profile.</p>
                 <ProfileCardView profile={preview} className="!w-full !max-h-none !shadow-none" />
             </aside>
             </div>

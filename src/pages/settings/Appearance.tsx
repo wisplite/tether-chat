@@ -19,11 +19,9 @@ export default function Appearance() {
         <div className="settings-page">
             <header className="settings-heading">
                 <h1>Appearance</h1>
-                <p>Make Tether feel like your space. Changes apply instantly.</p>
             </header>
             <section className="settings-panel" aria-labelledby="theme-heading">
                 <h2 id="theme-heading" className="text-base font-semibold">Theme</h2>
-                <p className="mt-1 text-foreground-muted">Choose a look for the whole app.</p>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3" role="group" aria-label="Theme">
                     {themes.map(({ value, label, description, icon: Icon }) => (
                         <button key={value} type="button" aria-pressed={theme === value} onClick={() => update(value, accent)} className={`appearance-choice ${theme === value ? 'border-accent bg-accent/5' : 'border-background-tertiary hover:bg-foreground-muted-hover'}`}>
