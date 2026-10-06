@@ -263,7 +263,10 @@ function UserItem({ user }: { user: any }) {
         >
             <ProfileButton className="flex min-w-0 w-full cursor-pointer items-center gap-3 rounded-[2px] p-1.5 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
                 <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt="" className="size-7 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
-                <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{user.Username}</span>
+                <div className="flex flex-col items-start justify-start">
+                    <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{user.Nickname}</span>
+                    <span className="min-w-0 truncate text-[13px] text-foreground-muted">{user.Status}</span>
+                </div>
             </ProfileButton>
         </ProfileCard>
     )
