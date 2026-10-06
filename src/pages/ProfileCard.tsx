@@ -36,6 +36,25 @@ const PRESENCE: Record<string, { label: string, dot: string }> = {
   offline: { label: 'Offline', dot: 'bg-foreground-muted' },
 }
 
+export function presenceInfo(presence?: string) {
+  return PRESENCE[(presence ?? '').toLowerCase()] ?? PRESENCE.offline
+}
+
+// A round cutout in the corner lets the row background show through the gap, the way Discord status badges do.
+const AVATAR_STATUS_MASK = '[mask-image:radial-gradient(circle_at_calc(100%_-_5px)_calc(100%_-_5px),transparent_7px,#000_8px)] [mask-repeat:no-repeat] [mask-size:100%_100%]'
+
+export function UserAvatar({ src, presence }: { src: string, presence?: string }) {
+  const info = presenceInfo(presence)
+  return (
+    <span className="relative size-8 shrink-0">
+      <img src={src} alt="" className={`size-8 rounded-[2px] bg-background-tertiary object-cover ${AVATAR_STATUS_MASK}`} />
+      <span className={`absolute right-0 bottom-0 size-2.5 rounded-full ${info.dot}`} title={info.label}>
+        <span className="sr-only">{info.label}</span>
+      </span>
+    </span>
+  )
+}
+
 function assetUrl(tetherUrl: string, path?: string) {
   if (!path) return ''
   if (/^(https?:|blob:|data:)/i.test(path)) return path
@@ -225,7 +244,7 @@ export const ProfileCardView = forwardRef<HTMLDivElement, ProfileCardViewProps>(
   const user = readProfile(profile)
   const displayName = user.nickname || user.username || fallbackName || ''
   const handle = user.username && user.username !== displayName ? user.username : ''
-  const presence = PRESENCE[(user.presence ?? '').toLowerCase()]
+  const presence = presenceInfo(user.presence)
   const isAdmin = user.role === 'admin'
   const joined = formatJoined(user.createdAt)
   const avatarSrc = assetUrl(tether.url, user.avatarUrl)

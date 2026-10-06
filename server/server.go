@@ -15,6 +15,8 @@ import (
 	dicebear "github.com/dicebear/dicebear-go/v10"
 	"github.com/dicebear/styles/v10"
 
+	"log/slog"
+
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/recodeorg/tether"
@@ -153,6 +155,8 @@ func main() {
 		panic("failed to create engine")
 	}
 
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+
 	engine.SetAuth(&Auth{})
 
 	engine.CreateTable(&User{})
@@ -166,6 +170,15 @@ func main() {
 	engine.CreateTable(&ChannelMember{})
 	engine.CreateTable(&Message{})
 	engine.CreateTable(&AttachmentMetadata{})
+
+	engine.RegisterCron("offlineUsers", "*/2 * * * *", "offlineUsers", map[string]any{})
+
+	engine.RegisterMutation("offlineUsers", func(ctx *tether.MutationCtx) (any, error) {
+		if err := ctx.DB.Model(&User{}).Where("presence = ? AND last_active < ?", "online", time.Now().Add(-time.Minute*2)).Update("presence", "offline").Error; err != nil {
+			return nil, errors.New("failed to update offline users")
+		}
+		return nil, nil
+	}, tether.Internal())
 
 	s3Storage, err := s3.New(context.Background(), s3.Config{
 		Region:   "auto",
@@ -318,6 +331,26 @@ func main() {
 			return false, nil
 		}
 		return true, nil
+	})
+
+	engine.RegisterMutation("heartbeat", func(ctx *tether.MutationCtx) (any, error) {
+		userID, err := ctx.Auth.GetIdentity()
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		if userID == "" {
+			return nil, errors.New("unauthorized")
+		}
+		user := &User{}
+		if err := ctx.DB.Where("id = ?", userID).First(user).Error; err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		user.LastActive = time.Now()
+		user.Presence = "online"
+		if err := ctx.DB.Save(user).Error; err != nil {
+			return nil, errors.New("failed to update last active")
+		}
+		return nil, nil
 	})
 
 	engine.RegisterMutation("createAccount", func(ctx *tether.MutationCtx) (any, error) {

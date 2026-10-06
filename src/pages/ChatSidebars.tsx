@@ -4,7 +4,7 @@ import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon, ListIcon,
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import ChatModal from './ChatModal'
 import ChannelList from './ChannelList'
-import { ProfileButton, ProfileCard } from './ProfileCard'
+import { presenceInfo, ProfileButton, ProfileCard, UserAvatar } from './ProfileCard'
 
 const CHANNEL_MIN = 144
 const CHANNEL_MAX = 400
@@ -279,8 +279,29 @@ function ChannelItem({ channel, onSelect }: { channel: any, onSelect: () => void
     )
 }
 
+const ONLINE_PRESENCE = new Set(['online', 'idle', 'dnd'])
+
+function memberName(user: { Nickname?: string, Username?: string }) {
+    return (user.Nickname || user.Username || '').toLocaleLowerCase()
+}
+
+function splitMembers(users: any[] | undefined) {
+    const online: any[] = []
+    const offline: any[] = []
+    for (const user of Array.isArray(users) ? users : []) {
+        if (ONLINE_PRESENCE.has(String(user.Presence ?? '').toLowerCase())) online.push(user)
+        else offline.push(user)
+    }
+    const byName = (a: any, b: any) => memberName(a).localeCompare(memberName(b))
+    online.sort(byName)
+    offline.sort(byName)
+    return { online, offline }
+}
+
 function UserItem({ user }: { user: any }) {
     const tether = useTether()
+    const presence = presenceInfo(user.Presence)
+    const label = [user.Nickname || user.Username, user.Status, presence.label].filter(Boolean).join(', ')
     return (
         <ProfileCard
             userId={user.ID}
@@ -294,14 +315,26 @@ function UserItem({ user }: { user: any }) {
                 profileColor: user.ProfileColor,
             }}
         >
-            <ProfileButton className="flex min-w-0 w-full cursor-pointer items-center gap-3 rounded-[2px] p-1.5 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
-                <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt="" className="size-7 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
-                <div className="flex flex-col items-start justify-start">
-                    <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{user.Nickname}</span>
-                    <span className="min-w-0 truncate text-[13px] text-foreground-muted">{user.Status}</span>
+            <ProfileButton label={label} className="flex min-w-0 w-full cursor-pointer items-center gap-3 rounded-[2px] p-1.5 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
+                <UserAvatar src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} presence={user.Presence} />
+                <div className="flex min-w-0 flex-col items-start justify-start">
+                    <span className="min-w-0 max-w-full truncate text-[13px] font-medium text-foreground">{user.Nickname}</span>
+                    {user.Status && user.Presence !== "offline" && <span className="min-w-0 max-w-full truncate text-[13px] text-foreground-muted">{user.Status}</span>}
                 </div>
             </ProfileButton>
         </ProfileCard>
+    )
+}
+
+function MemberGroup({ label, users, open, onToggle }: { label: string, users: any[], open: boolean, onToggle: () => void }) {
+    return (
+        <section className="flex flex-col">
+            <button type="button" aria-expanded={open} onClick={onToggle} className="flex w-full cursor-pointer items-center gap-1 rounded-[2px] px-1.5 py-1 text-left text-[11px] font-semibold tracking-wide text-foreground-muted uppercase hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary">
+                <CaretRightIcon className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} size={10} />
+                <span className="min-w-0 truncate">{label} — {users.length}</span>
+            </button>
+            {open && users.map(user => <UserItem key={user.ID} user={user} />)}
+        </section>
     )
 }
 
@@ -314,6 +347,8 @@ export default function ChatSidebars() {
     const { data: userInfo } = useQuery('getUserInfo')
     const [drawer, setDrawer] = useState<'channels' | 'members' | null>(null)
     const [channelListOpen, setChannelListOpen] = useState(true)
+    const [onlineOpen, setOnlineOpen] = useState(true)
+    const [offlineOpen, setOfflineOpen] = useState(true)
     const [createChannelModalOpen, setCreateChannelModalOpen] = useState(false)
     const layoutRef = useRef<HTMLDivElement>(null)
     const [containerWidth, setContainerWidth] = useState(() => window.innerWidth)
@@ -353,6 +388,7 @@ export default function ChatSidebars() {
     }
     const mobile = !membersVisible
     const activeChannel = channels?.find((channel: any) => channel.ID === channelId)
+    const members = splitMembers(users)
     const channelTarget = channelPreferred ?? CHANNEL_DEFAULT
     const membersTarget = membersPreferred ?? MEMBERS_DEFAULT
     const membersReserve = membersVisible ? MEMBERS_MIN : 0
@@ -420,8 +456,8 @@ export default function ChatSidebars() {
                                     createdAt: userInfo.CreatedAt,
                                 }}
                             >
-                                <ProfileButton label={`View ${userInfo.Username}'s profile`} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[2px] px-1 py-1 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
-                                    <img src={tether.url.replace('/tether', '') + '/' + userInfo.AvatarUrl} alt="" className="size-8 shrink-0 rounded-[2px] bg-background object-cover" />
+                                <ProfileButton label={`View ${userInfo.Username}'s profile, ${presenceInfo(userInfo.Presence).label}`} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[2px] px-1 py-1 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
+                                    <UserAvatar src={tether.url.replace('/tether', '') + '/' + userInfo.AvatarUrl} presence={userInfo.Presence} />
                                     <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{userInfo.Username}</span>
                                 </ProfileButton>
                             </ProfileCard>
@@ -460,8 +496,11 @@ export default function ChatSidebars() {
                 onReset={resetMembersWidth}
             />}
             <Sidebar mobile={mobile} open={drawer === 'members'} onClose={() => setDrawer(null)} side="members" width={membersWidth}>
-                <div className="min-h-0 overflow-y-auto px-2 py-2 gap-2 flex flex-col">
-                    {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
+                <div className="min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-2">
+                    {channelId && Array.isArray(users) && <>
+                        <MemberGroup label="Online" users={members.online} open={onlineOpen} onToggle={() => setOnlineOpen(open => !open)} />
+                        <MemberGroup label="Offline" users={members.offline} open={offlineOpen} onToggle={() => setOfflineOpen(open => !open)} />
+                    </>}
                     {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
                 </div>
             </Sidebar>

@@ -1,7 +1,7 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
-import { TetherProvider, useTether } from '@tetherdb/react'
+import { TetherProvider, useTether, useMutation } from '@tetherdb/react'
 import './index.css'
 import App from './App.tsx'
 import Login from './pages/Login.tsx'
@@ -29,6 +29,19 @@ function AutoLogin() {
   return null
 }
 
+function Heartbeat() {
+  const { mutate: heartbeat } = useMutation('heartbeat')
+  useEffect(() => {
+    // fire heartbeat immediately
+    heartbeat({})
+    const interval = setInterval(async () => {
+      await heartbeat({})
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [heartbeat])
+  return null
+}
+
 const url = import.meta.env.VITE_TETHER_URL || 'http://fox:8080/tether'
 
 createRoot(document.getElementById('root')!).render(
@@ -37,6 +50,7 @@ createRoot(document.getElementById('root')!).render(
       <AppearanceProvider>
       <div className="min-h-dvh bg-background font-sans text-[13px] leading-[18px] text-foreground antialiased">
       <AutoLogin />
+      <Heartbeat />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
