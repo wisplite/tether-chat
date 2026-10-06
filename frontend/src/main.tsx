@@ -42,7 +42,11 @@ function Heartbeat() {
   return null
 }
 
-const url = import.meta.env.VITE_TETHER_URL || 'http://fox:8080/tether'
+let url = window.location.origin
+if (url.endsWith('/')) {
+  url = url.slice(0, -1)
+}
+url += '/tether'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

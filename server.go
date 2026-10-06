@@ -1,15 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"log"
 	"mime"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	"embed"
 	"net/http"
 
 	dicebear "github.com/dicebear/dicebear-go/v10"
@@ -26,6 +30,9 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+//go:embed frontend/dist/*
+var frontend embed.FS
 
 const GormSQLiteTimeLayout = "2006-01-02 15:04:05.999999999-07:00"
 
@@ -366,6 +373,12 @@ func main() {
 		if err != nil {
 			return nil, errors.New("failed to hash password")
 		}
+		// if first user, make admin
+		userCount := int64(0)
+		if err := ctx.DB.Model(&User{}).Limit(1).Count(&userCount).Error; err != nil {
+			return nil, errors.New("failed to count users")
+		}
+
 		user := &User{
 			ID:           uuid.New().String(),
 			Username:     username,
@@ -374,6 +387,9 @@ func main() {
 			Role:         "member",
 			ProfileColor: "#3d60bb",
 			Password:     string(hashedPassword),
+		}
+		if userCount == 0 {
+			user.Role = "admin"
 		}
 		if err := ctx.DB.Create(user).Error; err != nil {
 			return nil, errors.New("failed to create user")
@@ -1169,6 +1185,30 @@ func main() {
 		return user, nil
 	})
 
+	distFS, err := fs.Sub(frontend, "frontend/dist")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fileServer := http.FileServer(http.FS(distFS))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		filePath := r.URL.Path[1:]
+
+		f, err := distFS.Open(filePath)
+		if err == nil {
+			f.Close()
+		}
+		if errors.Is(err, fs.ErrNotExist) && filePath != "" {
+			data, err := fs.ReadFile(distFS, "index.html")
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(data))
+			return
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 	http.HandleFunc("/tether", engine.Handle)
 	http.HandleFunc("/storage/", engine.StorageHandler)
 	http.ListenAndServe(":8080", nil)

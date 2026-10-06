@@ -381,6 +381,12 @@ export default function ChatSidebars() {
         return () => media.removeEventListener('change', update)
     }, [])
 
+    // With no channel selected, fall back to the first channel in the list.
+    const firstChannelId: string | undefined = channels?.[0]?.ID
+    useEffect(() => {
+        if (!channelId && firstChannelId) navigate(`/chat/${firstChannelId}`, { replace: true })
+    }, [channelId, firstChannelId, navigate])
+
     const [previousChannelId, setPreviousChannelId] = useState(channelId)
     if (previousChannelId !== channelId) {
         setPreviousChannelId(channelId)
