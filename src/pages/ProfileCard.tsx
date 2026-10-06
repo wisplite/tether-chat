@@ -210,7 +210,7 @@ export function ProfilePopover({ userId, preview, anchor, popoverId, onClose }: 
       fallbackName={data ? 'User' : undefined}
       alert={error && !data ? 'Unable to load profile.' : undefined}
     />,
-    document.body,
+    anchor.closest('dialog') ?? document.body,
   )
 }
 

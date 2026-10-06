@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useTether } from '@tetherdb/react'
 import { Link, Outlet, useNavigate, useParams } from 'react-router'
-import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon } from '@phosphor-icons/react'
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon, ListIcon, UsersIcon, XIcon } from '@phosphor-icons/react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import ChatModal from './ChatModal'
 import ChannelList from './ChannelList'
 import { ProfileButton, ProfileCard } from './ProfileCard'
@@ -9,15 +9,46 @@ import { ProfileButton, ProfileCard } from './ProfileCard'
 const CHANNEL_MIN = 144
 const CHANNEL_MAX = 400
 const CHANNEL_DEFAULT = 200
-const NARROW_CHANNEL_DEFAULT = 144
 const MEMBERS_MIN = 160
 const MEMBERS_MAX = 400
 const MEMBERS_DEFAULT = 200
 // Leave the message column wide enough that the composer and messages stay usable.
 const MAIN_MIN = 320
-const NARROW_LAYOUT = 640
 const MEMBERS_LAYOUT = 1024
 const STORAGE_KEY = 'tether-sidebar-widths'
+
+// Native modal dialogs keep focus inside the drawer and the chat inert behind it.
+function Sidebar({ mobile, open, onClose, side, width, children }: {
+    mobile: boolean, open: boolean, onClose: () => void,
+    side: 'channels' | 'members', width: number, children: ReactNode,
+}) {
+    const dialogRef = useRef<HTMLDialogElement>(null)
+    useEffect(() => {
+        const dialog = dialogRef.current
+        if (!dialog) return
+        if (open && !dialog.open) dialog.showModal()
+        else if (!open && dialog.open) dialog.close()
+    }, [mobile, open])
+    const label = side === 'channels' ? 'Channels' : 'Channel members'
+    const contentClass = 'flex h-full min-w-0 shrink-0 flex-col bg-background-secondary'
+    if (!mobile) return <aside aria-label={label} style={{ width }} className={`${contentClass} ${side === 'channels' ? 'border-r' : 'border-l'} border-background-tertiary`}>{children}</aside>
+    return <dialog ref={dialogRef} id={`${side}-drawer`} aria-label={label}
+        onCancel={event => { event.preventDefault(); onClose() }}
+        onClick={event => {
+            if (event.target !== event.currentTarget) return
+            const rect = event.currentTarget.getBoundingClientRect()
+            if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose()
+        }}
+        className={`fixed inset-y-0 m-0 h-dvh max-h-none w-[min(320px,calc(100%-3rem))] max-w-none overflow-visible border-0 bg-background-secondary p-0 text-foreground shadow-xl backdrop:bg-black/50 ${side === 'channels' ? 'left-0 right-auto' : 'left-auto right-0'}`}>
+        <div className={`${contentClass} pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`}>
+            <div className="flex shrink-0 items-center justify-between border-b border-background-tertiary px-3 py-1">
+                <h2 className="text-sm font-semibold">{label}</h2>
+                <button autoFocus type="button" aria-label={`Close ${label.toLowerCase()}`} onClick={onClose} className="flex size-11 items-center justify-center rounded-[2px] hover:bg-background-tertiary focus-visible:outline-2 focus-visible:outline-brand-primary"><XIcon size={20} /></button>
+            </div>
+            {children}
+        </div>
+    </dialog>
+}
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max)
@@ -187,7 +218,7 @@ function CreateChannel({ onClose }: { onClose: () => void }) {
     )
 }
 
-function ChannelItem({ channel }: { channel: any }) {
+function ChannelItem({ channel, onSelect }: { channel: any, onSelect: () => void }) {
     const { channelId } = useParams()
     const { data: userInfo } = useQuery('getUserInfo')
     const { prefetch } = useTether()
@@ -225,7 +256,7 @@ function ChannelItem({ channel }: { channel: any }) {
     }
     return (
         <div className="group relative w-full" key={channel.ID} onMouseEnter={handleMouseEnter}>
-            <Link to={`/chat/${channel.ID}`} aria-current={channelId === channel.ID ? 'page' : undefined} className={`flex min-h-8 w-full items-center gap-1.5 rounded-[2px] p-1.5 pr-9 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand-primary ${channelId === channel.ID ? 'bg-accent-light text-foreground' : 'text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground'}`}>
+            <Link onClick={onSelect} to={`/chat/${channel.ID}`} aria-current={channelId === channel.ID ? 'page' : undefined} className={`flex min-h-8 w-full items-center gap-1.5 rounded-[2px] p-1.5 pr-9 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand-primary ${channelId === channel.ID ? 'bg-accent-light text-foreground' : 'text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground'}`}>
                 {channel.IsPrivate ? <LockSimpleIcon size={16} className="shrink-0 text-foreground-muted" /> : <HashIcon size={16} className={`shrink-0 ${channelId === channel.ID ? 'text-accent' : 'text-foreground-muted'}`} />}
                 <span className="truncate">{channel.Name}</span>
             </Link>
@@ -281,6 +312,7 @@ export default function ChatSidebars() {
     const { data: channels } = useQuery('getChannels')
     const { data: users } = useQuery('getChannelMembers', { channelID: channelId })
     const { data: userInfo } = useQuery('getUserInfo')
+    const [drawer, setDrawer] = useState<'channels' | 'members' | null>(null)
     const [channelListOpen, setChannelListOpen] = useState(true)
     const [createChannelModalOpen, setCreateChannelModalOpen] = useState(false)
     const layoutRef = useRef<HTMLDivElement>(null)
@@ -305,13 +337,23 @@ export default function ChatSidebars() {
 
     useEffect(() => {
         const media = window.matchMedia(`(min-width: ${MEMBERS_LAYOUT}px)`)
-        const update = () => setMembersVisible(media.matches)
+        const update = () => {
+            setMembersVisible(media.matches)
+            setDrawer(null)
+        }
         update()
         media.addEventListener('change', update)
         return () => media.removeEventListener('change', update)
     }, [])
 
-    const channelTarget = channelPreferred ?? (containerWidth < NARROW_LAYOUT ? NARROW_CHANNEL_DEFAULT : CHANNEL_DEFAULT)
+    const [previousChannelId, setPreviousChannelId] = useState(channelId)
+    if (previousChannelId !== channelId) {
+        setPreviousChannelId(channelId)
+        setDrawer(null)
+    }
+    const mobile = !membersVisible
+    const activeChannel = channels?.find((channel: any) => channel.ID === channelId)
+    const channelTarget = channelPreferred ?? CHANNEL_DEFAULT
     const membersTarget = membersPreferred ?? MEMBERS_DEFAULT
     const membersReserve = membersVisible ? MEMBERS_MIN : 0
     const channelWidth = fitSidebar(channelTarget, CHANNEL_MIN, CHANNEL_MAX, containerWidth, MAIN_MIN + membersReserve)
@@ -351,17 +393,17 @@ export default function ChatSidebars() {
     }
     return (
         <div ref={layoutRef} className="flex h-dvh w-full overflow-hidden bg-background">
-            <aside aria-label="Channels" style={{ width: channelWidth }} className="flex h-full min-w-0 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary">
-                <div className="flex items-center justify-between gap-1 px-3 pb-2 pt-2">
-                    <button className="flex min-w-0 pl-1 cursor-pointer items-center gap-1.5 rounded-[2px] text-xs font-medium text-foreground-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleChannelListOpen} aria-expanded={channelListOpen}>
+            <Sidebar mobile={mobile} open={drawer === 'channels'} onClose={() => setDrawer(null)} side="channels" width={channelWidth}>
+                <div className={`flex items-center justify-between gap-1 px-3 pb-2 pt-2 ${mobile && userInfo?.Role !== 'admin' ? 'hidden' : ''}`}>
+                    {!mobile && <button className="flex min-w-0 pl-1 cursor-pointer items-center gap-1.5 rounded-[2px] text-xs font-medium text-foreground-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleChannelListOpen} aria-expanded={channelListOpen}>
                         <span className="min-w-0 truncate">Channels</span>
                         <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
-                    </button>
+                    </button>}
                     {userInfo?.Role === 'admin' && <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>}
                     {userInfo?.Role !== 'admin' && <div className="size-7 shrink-0" />}
                 </div>
-                <div className={`min-h-0 flex-1 flex flex-col gap-0.5 justify-between overflow-y-auto px-2 pb-2 ${channelListOpen ? '' : 'hidden'}`}>
-                    <ChannelList channels={channels ?? []} canReorder={userInfo?.Role === 'admin'} renderChannel={channel => <ChannelItem channel={channel} />} />
+                <div className={`min-h-0 flex-1 flex flex-col gap-0.5 justify-between overflow-y-auto px-2 pb-2 ${mobile || channelListOpen ? '' : 'hidden'}`}>
+                    <ChannelList channels={channels ?? []} canReorder={userInfo?.Role === 'admin'} renderChannel={channel => <ChannelItem channel={channel} onSelect={() => setDrawer(null)} />} />
                     <div className="flex flex-row items-center gap-1 rounded-[2px] border border-background-tertiary bg-background-tertiary p-1">
                         {userInfo?.ID ? (
                             <ProfileCard
@@ -384,11 +426,11 @@ export default function ChatSidebars() {
                                 </ProfileButton>
                             </ProfileCard>
                         ) : <div className="h-8 flex-1" />}
-                        <button className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {navigate('/settings')}}><GearIcon size={16} /></button>
+                        <button aria-label="User settings" className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {navigate('/settings')}}><GearIcon size={16} /></button>
                     </div>
                 </div>
-            </aside>
-            <SidebarResizeHandle
+            </Sidebar>
+            {!mobile && <SidebarResizeHandle
                 label="Resize channels sidebar"
                 value={channelWidth}
                 min={CHANNEL_MIN}
@@ -396,29 +438,33 @@ export default function ChatSidebars() {
                 direction={1}
                 onChange={setChannelWidth}
                 onReset={resetChannelWidth}
-            />
+            />}
             <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+                {mobile && <header className="flex shrink-0 items-center gap-2 border-b border-background-tertiary px-2 pt-[env(safe-area-inset-top)]">
+                    <button type="button" aria-label="Open channels" aria-haspopup="dialog" aria-expanded={drawer === 'channels'} aria-controls="channels-drawer" onClick={() => { setChannelListOpen(true); setDrawer('channels') }} className="flex size-11 shrink-0 items-center justify-center rounded-[2px] hover:bg-background-secondary focus-visible:outline-2 focus-visible:outline-brand-primary"><ListIcon size={24} /></button>
+                    <h1 className="flex min-w-0 flex-1 items-center gap-1 text-base font-bold">
+                        {activeChannel && (activeChannel.IsPrivate ? <LockSimpleIcon size={20} className="shrink-0 text-brand-primary" /> : <HashIcon size={20} className="shrink-0 text-brand-primary" />)}
+                        <span className="truncate">{activeChannel?.Name ?? 'Tether Chat'}</span>
+                    </h1>
+                    <button type="button" aria-label="Open channel members" aria-haspopup="dialog" aria-expanded={drawer === 'members'} aria-controls="members-drawer" onClick={() => setDrawer('members')} className="flex size-11 shrink-0 items-center justify-center rounded-[2px] hover:bg-background-secondary focus-visible:outline-2 focus-visible:outline-brand-primary"><UsersIcon size={24} /></button>
+                </header>}
                 <Outlet />
             </main>
-            {membersVisible && (
-                <>
-                    <SidebarResizeHandle
-                        label="Resize members sidebar"
-                        value={membersWidth}
-                        min={MEMBERS_MIN}
-                        max={membersMax}
-                        direction={-1}
-                        onChange={setMembersWidth}
-                        onReset={resetMembersWidth}
-                    />
-                    <aside aria-label="Channel members" style={{ width: membersWidth }} className="flex h-full min-w-0 shrink-0 flex-col border-l border-background-tertiary bg-background-secondary">
-                        <div className="min-h-0 overflow-y-auto px-2 py-2 gap-2 flex flex-col">
-                            {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
-                            {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
-                        </div>
-                    </aside>
-                </>
-            )}
+            {!mobile && <SidebarResizeHandle
+                label="Resize members sidebar"
+                value={membersWidth}
+                min={MEMBERS_MIN}
+                max={membersMax}
+                direction={-1}
+                onChange={setMembersWidth}
+                onReset={resetMembersWidth}
+            />}
+            <Sidebar mobile={mobile} open={drawer === 'members'} onClose={() => setDrawer(null)} side="members" width={membersWidth}>
+                <div className="min-h-0 overflow-y-auto px-2 py-2 gap-2 flex flex-col">
+                    {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
+                    {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
+                </div>
+            </Sidebar>
             <ChatModal title="Create channel" open={createChannelModalOpen} onClose={() => setCreateChannelModalOpen(false)}>
                 <CreateChannel onClose={() => setCreateChannelModalOpen(false)} />
             </ChatModal>

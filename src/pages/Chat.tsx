@@ -342,7 +342,7 @@ function AttachmentItem({ attachment: { url, filename }, onMouseEnter, onMouseLe
     return <img src={src} alt={filename} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="block h-auto max-h-64 max-w-full object-contain rounded-[2px] border border-background-tertiary mb-1" />
   } else if (contentType?.startsWith('video/')) {
     return <div className="w-fit max-w-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <video src={src} className="block h-auto w-auto max-w-[400px] max-h-96 rounded-[2px] bg-background mb-1" controls />
+      <video src={src} className="block h-auto w-auto max-w-full sm:max-w-[400px] max-h-96 rounded-[2px] bg-background mb-1" controls />
     </div>
   } else if (contentType?.startsWith('audio/')) {
     return <div className={ATTACHMENT_WIDTH} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
@@ -569,7 +569,7 @@ export default function Chat() {
   }
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background relative">
-      <header className="flex shrink-0 items-center justify-between border-b border-background-tertiary p-2">
+      <header className="hidden lg:flex shrink-0 items-center justify-between border-b border-background-tertiary p-2">
         <div className="min-w-0">
           <h1 className="flex min-w-0 items-center gap-1 text-lg font-bold tracking-[-0.03em] leading-9">{channel.IsPrivate ? <LockSimpleIcon size={24} className="shrink-0 text-brand-primary" /> : <HashIcon size={24} className="shrink-0 text-brand-primary" />}<span className="truncate">{channel.Name}</span></h1>
         </div>

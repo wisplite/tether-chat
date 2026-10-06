@@ -13,6 +13,13 @@ import Profile from './pages/settings/Profile.tsx'
 import Appearance from './pages/settings/Appearance.tsx'
 import { AppearanceProvider } from './context/Appearance.tsx'
 
+if (!crypto.randomUUID) {
+  crypto.randomUUID = () =>
+    '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+      (Number(c) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(c) / 4)))).toString(16),
+    ) as `${string}-${string}-${string}-${string}-${string}`
+}
+
 function AutoLogin() {
   const { setToken } = useTether()
   const token = localStorage.getItem('token')
@@ -22,7 +29,7 @@ function AutoLogin() {
   return null
 }
 
-const url = import.meta.env.VITE_TETHER_URL || 'http://localhost:8080/tether'
+const url = import.meta.env.VITE_TETHER_URL || 'http://fox:8080/tether'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

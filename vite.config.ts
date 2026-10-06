@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    allowedHosts: ['fox'],
     watch: {
       // SQLite rewrites these on every message; Vite treats that as a full reload.
       ignored: ['**/server/**/*.db', '**/server/**/*.db-*'],
