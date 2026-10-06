@@ -99,6 +99,9 @@ function downloadWithProgress(src: string, filename: string, onProgress: (percen
 
 type HoverProps = { onMouseEnter?: () => void, onMouseLeave?: () => void }
 
+// Shared width for non-image attachments: fills the message column but caps at 400px.
+const ATTACHMENT_WIDTH = 'w-full max-w-[400px]'
+
 function FileAttachment({ src, filename, size, onMouseEnter, onMouseLeave }: { src: string, filename: string, size: number } & HoverProps) {
   const [progress, setProgress] = useState<number | null>(null)
   const downloadingRef = useRef(false)
@@ -118,7 +121,7 @@ function FileAttachment({ src, filename, size, onMouseEnter, onMouseLeave }: { s
     }
   }
   return (
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="relative flex w-full max-w-sm min-w-0 items-center justify-between gap-3 overflow-hidden rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-2 mb-1">
+    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className={`relative flex ${ATTACHMENT_WIDTH} items-center justify-between gap-3 overflow-hidden rounded-[2px] border border-background-tertiary bg-background-secondary px-3 py-2 mb-1`}>
       <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
         <p className="min-w-0 truncate text-sm text-foreground-muted">{filename}</p>
         <p className="text-xs text-foreground-muted">{size ? formatBytes(size) : ''}</p>
@@ -337,15 +340,15 @@ function AttachmentItem({ attachment: { url, filename }, onMouseEnter, onMouseLe
   if (contentType?.startsWith('image/')) {
     return <img src={src} alt={filename} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="block h-auto max-h-64 max-w-full object-contain rounded-[2px] border border-background-tertiary mb-1" />
   } else if (contentType?.startsWith('video/')) {
-    return <div className="basis-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <video src={src} className="block h-auto w-auto max-h-64 max-w-full rounded-[2px] mb-1" controls />
+    return <div className="w-fit max-w-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <video src={src} className="block h-auto w-auto max-w-[400px] max-h-96 rounded-[2px] bg-background mb-1" controls />
     </div>
   } else if (contentType?.startsWith('audio/')) {
-    return <div className="basis-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    return <div className={ATTACHMENT_WIDTH} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <audio src={src} className="block w-full mb-1" controls />
     </div>
   } else if (contentType === null) {
-    return <div className="w-32 h-32 rounded-[2px] bg-background" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
+    return <div className={`${ATTACHMENT_WIDTH} h-32 rounded-[2px] bg-background`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
   } else {
     return <FileAttachment src={src} filename={filename} size={size} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
   }

@@ -94,7 +94,7 @@ function ChannelItem({ channel }: { channel: any }) {
 function UserItem({ user }: { user: any }) {
     const tether = useTether()
     return (
-        <div className="flex min-w-0 w-full items-center gap-3 px-3 py-2" key={user.ID}>
+        <div className="flex min-w-0 w-full items-center gap-3" key={user.ID}>
             <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt={user.Username} className="size-7 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
             <p className="truncate text-[13px] font-medium text-foreground">{user.Username}</p>
         </div>
@@ -103,8 +103,10 @@ function UserItem({ user }: { user: any }) {
 
 export default function ChatSidebars() {
     const { channelId } = useParams()
+    const tether = useTether()
     const { data: channels } = useQuery('getChannels')
     const { data: users } = useQuery('getChannelMembers', { channelID: channelId })
+    const { data: userInfo } = useQuery('getUserInfo')
     const [channelListOpen, setChannelListOpen] = useState(true)
     const [createChannelModalOpen, setCreateChannelModalOpen] = useState(false)
     const toggleChannelListOpen = () => {
@@ -121,12 +123,19 @@ export default function ChatSidebars() {
                         <span>Channels</span>
                         <CaretRightIcon className={`shrink-0 transition-transform ${channelListOpen ? 'rotate-90' : ''}`} size={12} />
                     </button>
-                    <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>
+                    {userInfo?.Role === 'admin' && <button aria-label="Create channel" className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={toggleCreateChannelModalOpen}><PlusIcon size={16} /></button>}
                 </div>
-                <div className={`min-h-0 flex-1 overflow-y-auto px-2 ${channelListOpen ? '' : 'hidden'}`}>
+                <div className={`min-h-0 flex-1 flex flex-col gap-0.5 justify-between overflow-y-auto px-2 pb-2 ${channelListOpen ? '' : 'hidden'}`}>
                     <div className="flex flex-col gap-0.5">
                         {channels?.map((channel: any) => <ChannelItem key={channel.ID} channel={channel} />)}
                         {channels?.length === 0 && <p className="px-3 py-2 text-xs leading-5 text-foreground-muted">Create a channel to start a conversation.</p>}
+                    </div>
+                    <div className="flex flex-row items-center justify-between gap-3 p-2 bg-background-tertiary rounded-[2px] border border-background-tertiary">
+                        <div className="flex flex-row items-center gap-3">
+                            <img src={tether.url.replace('/tether', '') + '/' + userInfo?.AvatarUrl} alt={userInfo?.Username} className="size-8 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
+                            <p className="text-md font-medium text-foreground">{userInfo?.Username}</p>
+                        </div>
+                        <button className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {}}><GearIcon size={16} /></button>
                     </div>
                 </div>
             </aside>
@@ -134,7 +143,7 @@ export default function ChatSidebars() {
                 <Outlet />
             </main>
             <aside aria-label="Channel members" className="hidden h-full w-[200px] shrink-0 flex-col border-l border-background-tertiary bg-background-secondary lg:flex">
-                <div className="min-h-0 overflow-y-auto px-2 py-2">
+                <div className="min-h-0 overflow-y-auto px-2 py-2 gap-2 flex flex-col">
                     {users?.map((user: any) => <UserItem key={user.ID} user={user} />)}
                     {!channelId && <p className="px-3 text-xs leading-5 text-foreground-muted">Select a channel to see its members.</p>}
                 </div>
