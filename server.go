@@ -71,7 +71,7 @@ type Channel struct {
 
 type ChannelMember struct {
 	ID        string `gorm:"primaryKey"`
-	ChannelID string `gorm:"index"`
+	ChannelID string `gorm:"index" tether:"track"`
 	UserID    string `gorm:"index" tether:"track"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -175,6 +175,7 @@ func main() {
 		panic(err)
 	}
 	engine.CreateTable(&ChannelMember{})
+	registerChannelInvitations(engine)
 	engine.CreateTable(&Message{})
 	engine.CreateTable(&AttachmentMetadata{})
 
@@ -981,6 +982,9 @@ func main() {
 				}
 			}
 			if err := tx.Where("channel_id = ?", channelID).Delete(&Message{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("channel_id = ?", channelID).Delete(&ChannelMember{}).Error; err != nil {
 				return err
 			}
 			return tx.Where("id = ?", channelID).Delete(&Channel{}).Error

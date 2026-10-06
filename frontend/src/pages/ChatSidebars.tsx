@@ -4,6 +4,7 @@ import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon, ListIcon,
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import ChatModal from './ChatModal'
 import ChannelList from './ChannelList'
+import ChannelInvitations from './ChannelInvitations'
 import { presenceInfo, ProfileButton, ProfileCard, UserAvatar } from './ProfileCard'
 
 const CHANNEL_MIN = 144
@@ -273,6 +274,7 @@ function ChannelItem({ channel, onSelect }: { channel: any, onSelect: () => void
                         <button className="inline-flex items-center justify-center bg-brand-primary text-white px-4 py-2 rounded-[2px] text-[13px] leading-5 font-medium cursor-pointer transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50" onClick={updateChannel}>Update</button>
                         <button className="rounded-[2px] border border-error/20 bg-error/5 px-4 py-2 text-[13px] leading-5 font-medium text-error cursor-pointer hover:bg-error/10 focus-visible:outline-2 focus-visible:outline-error" onClick={deleteChannel}>Delete</button>
                     </div>
+                    {channelSettingsModalOpen && channel.IsPrivate && userInfo?.Role === 'admin' && <ChannelInvitations channelID={channel.ID} />}
                 </div>
             } />
         </div>
