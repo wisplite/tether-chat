@@ -26,14 +26,15 @@ import (
 const GormSQLiteTimeLayout = "2006-01-02 15:04:05.999999999-07:00"
 
 type User struct {
-	ID         string `gorm:"primaryKey"`
+	ID         string `gorm:"primaryKey" tether:"track"`
 	Username   string `gorm:"unique"`
 	Nickname   string
 	Password   string
 	AvatarUrl  string
-	Role       string
+	Role       string `gorm:"index" tether:"track"`
 	Status     string
 	Presence   string
+	Bio        string
 	LastActive time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -58,7 +59,7 @@ type Channel struct {
 type ChannelMember struct {
 	ID        string `gorm:"primaryKey"`
 	ChannelID string `gorm:"index"`
-	UserID    string `gorm:"index"`
+	UserID    string `gorm:"index" tether:"track"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -196,6 +197,21 @@ func main() {
 		channelIDs := []string{}
 		ctx.TrackTable("channels")
 		ctx.TrackCollection("channel_members", "user_id", userID)
+
+		user := &User{}
+		if err := ctx.DB.Where("id = ?", userID).First(user).Error; err != nil {
+			return []string{}, nil
+		}
+		if user.Role == "admin" {
+			channels := []Channel{}
+			if err := ctx.DB.Find(&channels).Error; err != nil {
+				return []string{}, nil
+			}
+			for _, channel := range channels {
+				channelIDs = append(channelIDs, channel.ID)
+			}
+			return channelIDs, nil
+		}
 		channelMembers := []ChannelMember{}
 		if err := ctx.DB.Where("user_id = ?", userID).Find(&channelMembers).Error; err != nil {
 			return []string{}, nil
@@ -220,6 +236,13 @@ func main() {
 		}
 		if userID == "" {
 			return false, nil
+		}
+		user := &User{}
+		if err := ctx.DB.Where("id = ?", userID).First(user).Error; err != nil {
+			return false, nil
+		}
+		if user.Role == "admin" {
+			return true, nil
 		}
 		channelID, ok := ctx.Params["channelID"].(string)
 		if !ok {
@@ -249,6 +272,21 @@ func main() {
 		return true, nil
 	})
 
+	engine.RegisterGuard("isUser", func(ctx *tether.GuardCtx) (any, error) {
+		userID, err := ctx.Auth.GetIdentity()
+		if err != nil {
+			return false, nil
+		}
+		if userID == "" {
+			return false, nil
+		}
+		user := &User{}
+		if err := ctx.DB.Where("id = ?", userID).First(user).Error; err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+
 	engine.RegisterMutation("createAccount", func(ctx *tether.MutationCtx) (any, error) {
 		username, ok := ctx.Params["username"].(string)
 		if !ok {
@@ -265,6 +303,9 @@ func main() {
 		user := &User{
 			ID:       uuid.New().String(),
 			Username: username,
+			Nickname: username,
+			Bio:      "",
+			Role:     "member",
 			Password: string(hashedPassword),
 		}
 		if err := ctx.DB.Create(user).Error; err != nil {
@@ -588,13 +629,23 @@ func main() {
 		if channel.IsPrivate {
 			// get all channel members, as this is a private channel
 			ctx.TrackCollection("channel_members", "channel_id", channelID)
+			ctx.TrackCollection("users", "role", "admin")
 			channelMembers := []ChannelMember{}
 			if err := ctx.DB.Where("channel_id = ?", channelID).Find(&channelMembers).Error; err != nil {
 				return nil, errors.New("failed to get channel members")
 			}
+			admins := []User{}
+			if err := ctx.DB.Where("role = ?", "admin").Find(&admins).Error; err != nil {
+				return nil, errors.New("failed to get admins")
+			}
 			userIDs := make([]string, 0, len(channelMembers))
 			for _, channelMember := range channelMembers {
 				userIDs = append(userIDs, channelMember.UserID)
+			}
+			for _, admin := range admins {
+				if !slices.Contains(userIDs, admin.ID) {
+					userIDs = append(userIDs, admin.ID)
+				}
 			}
 			users := []User{}
 			if err := ctx.DB.Where("id IN (?)", userIDs).Find(&users).Error; err != nil {
@@ -622,6 +673,40 @@ func main() {
 			return nil, errors.New("failed to get user info")
 		}
 		return user, nil
+	})
+
+	engine.RegisterQuery("getUser", func(ctx *tether.QueryCtx) (any, error) {
+		isUser, err := ctx.Auth.ExecuteGuard("isUser", map[string]any{})
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		isUserBool, ok := isUser.(bool)
+		if !ok {
+			return nil, errors.New("unauthorized")
+		}
+		if !isUserBool {
+			return nil, errors.New("unauthorized")
+		}
+		userID, ok := ctx.Params["userID"].(string)
+		if !ok {
+			return nil, errors.New("userID is required")
+		}
+		user := &User{}
+		if err := ctx.DB.Where("id = ?", userID).First(user).Error; err != nil {
+			return nil, errors.New("failed to get user")
+		}
+		sanitizedUser := User{
+			ID:        user.ID,
+			Username:  user.Username,
+			Nickname:  user.Nickname,
+			AvatarUrl: user.AvatarUrl,
+			Role:      user.Role,
+			Status:    user.Status,
+			Presence:  user.Presence,
+			Bio:       user.Bio,
+			CreatedAt: user.CreatedAt,
+		}
+		return sanitizedUser, nil
 	})
 
 	engine.RegisterMutation("sendMessage", func(ctx *tether.MutationCtx) (any, error) {

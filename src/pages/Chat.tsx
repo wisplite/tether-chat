@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useInView } from 'react-intersection-observer'
 import { PlusIcon, FileIcon, TrashIcon, PencilIcon, DownloadIcon, PaperPlaneTiltIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
+import { ProfileButton, ProfileCard } from './ProfileCard'
 
 function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -354,7 +355,7 @@ function AttachmentItem({ attachment: { url, filename }, onMouseEnter, onMouseLe
   }
 }
 
-function MessageItem({ message, user, compact, edited }: { message: any, user: any, compact: boolean, edited: boolean }) {
+function MessageItem({ message, user, compact, edited, canEdit, canDelete }: { message: any, user: any, compact: boolean, edited: boolean, canEdit: boolean, canDelete: boolean }) {
   const tether = useTether()
   const [isHovered, setIsHovered] = useState(false)
   const [isAttachmentHovered, setIsAttachmentHovered] = useState(false)
@@ -398,15 +399,26 @@ function MessageItem({ message, user, compact, edited }: { message: any, user: a
     time = new Date(message.CreatedAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
   }
   return (
-    <div className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-background-secondary' : ''} w-full px-2 gap-3 ${compact ? 'py-0.5' : 'pt-3 pb-0.5 mt-3'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>
+    <ProfileCard
+      userId={user.id}
+      preview={{
+        username: user.username,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        role: user.role,
+        status: user.status,
+        presence: user.presence,
+      }}
+    >
+    <div data-profile-align="" className={`relative flex flex-row items-start justify-start ${showHover ? 'bg-background-secondary' : ''} w-full px-2 gap-3 ${compact ? 'py-0.5' : 'pt-3 pb-0.5 mt-3'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => { setIsHovered(false); setIsAttachmentHovered(false) }}>
       {!compact && (
-        <div className="w-8 shrink-0 pt-0.5">
-          <img src={tether.url.replace('/tether', '') + user.avatarUrl} alt={user.username} className="size-8 rounded-[2px] bg-background-tertiary object-cover" />
-        </div>
+        <ProfileButton label={`View ${user.nickname || user.username}'s profile`} className="w-8 shrink-0 cursor-pointer rounded-[2px] p-0 pt-0.5 focus-visible:outline-2 focus-visible:outline-brand-primary">
+          <img src={tether.url.replace('/tether', '') + user.avatarUrl} alt="" className="size-8 rounded-[2px] bg-background-tertiary object-cover" />
+        </ProfileButton>
       )}
       {compact && <div className="w-8 h-6 shrink-0 rounded-full bg-transparent" />}
       <div className="flex flex-col items-start justify-start min-w-0 flex-1">
-        {!compact && <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[14px] font-semibold text-foreground">{user.username}<span className="text-[11px] font-normal text-foreground-muted">{time}</span></p>}
+        {!compact && <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[14px] font-semibold text-foreground"><ProfileButton className="cursor-pointer rounded-[2px] p-0 text-left hover:underline focus-visible:outline-2 focus-visible:outline-brand-primary">{user.nickname}</ProfileButton><span className="text-[11px] font-normal text-foreground-muted">{time}</span></div>}
         {isEditing ? (
           <textarea
             ref={editInputRef}
@@ -439,11 +451,12 @@ function MessageItem({ message, user, compact, edited }: { message: any, user: a
           </div>
         )}
       </div>
-      {showHover && !isEditing && <div className="absolute -top-3 right-4 flex items-center rounded-[2px] border border-background-tertiary bg-background p-0.5 gap-0.5 shadow-sm">
-        <button aria-label="Edit message" className="text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => { setMessageContent(message.Content); setIsEditing(true) }}><PencilIcon size={16} /></button>
-        <button aria-label="Delete message" className="text-error cursor-pointer hover:bg-error/5 size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-error" onClick={() => {deleteMessageMutation.mutate({ messageID: message.ID })}}><TrashIcon size={16} /></button>
+      {showHover && !isEditing && (canEdit || canDelete) && <div className="absolute -top-3 right-4 flex items-center rounded-[2px] border border-background-tertiary bg-background p-0.5 gap-0.5 shadow-sm">
+        {canEdit && <button aria-label="Edit message" className="text-foreground-muted cursor-pointer hover:bg-foreground-muted-hover size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => { setMessageContent(message.Content); setIsEditing(true) }}><PencilIcon size={16} /></button>}
+        {canDelete && <button aria-label="Delete message" className="text-error cursor-pointer hover:bg-error/5 size-7 flex items-center justify-center rounded-[2px] focus-visible:outline-2 focus-visible:outline-error" onClick={() => {deleteMessageMutation.mutate({ messageID: message.ID })}}><TrashIcon size={16} /></button>}
       </div>}
     </div>
+    </ProfileCard>
   )
 }
 
@@ -451,6 +464,7 @@ export default function Chat() {
   const { channelId } = useParams()
   const { data: channel, error: channelError } = useQuery('getChannel', { channelID: channelId })
   const { data: messages, error: messagesError, loadMore: loadMoreMessages, hasMore: hasMoreMessages } = usePaginatedQuery('getMessages', { channelID: channelId })
+  const { data: userInfo } = useQuery('getUserInfo')
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const shouldScrollRef = useRef(true);
@@ -573,8 +587,10 @@ export default function Chat() {
 
             const isCompact = isSameAuthor && isWithinWindow;
             const isEdited = message.message.UpdatedAt !== message.message.CreatedAt;
+            const canEdit = message.user.id === userInfo?.ID;
+            const canDelete = userInfo?.Role === 'admin' || message.user.id === userInfo?.ID;
             return (
-              <MessageItem key={message.message.ID} message={message.message} user={message.user} compact={isCompact} edited={isEdited} />
+              <MessageItem key={message.message.ID} message={message.message} user={message.user} compact={isCompact} edited={isEdited} canEdit={canEdit} canDelete={canDelete} />
             )
           })}
         </div>

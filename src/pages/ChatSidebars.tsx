@@ -3,6 +3,7 @@ import { Link, Outlet, useParams } from 'react-router'
 import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 import ChatModal from './ChatModal'
+import { ProfileButton, ProfileCard } from './ProfileCard'
 
 function CreateChannel({ onClose }: { onClose: () => void }) {
     const [channelName, setChannelName] = useState('')
@@ -94,10 +95,22 @@ function ChannelItem({ channel }: { channel: any }) {
 function UserItem({ user }: { user: any }) {
     const tether = useTether()
     return (
-        <div className="flex min-w-0 w-full items-center gap-3" key={user.ID}>
-            <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt={user.Username} className="size-7 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
-            <p className="truncate text-[13px] font-medium text-foreground">{user.Username}</p>
-        </div>
+        <ProfileCard
+            userId={user.ID}
+            preview={{
+                username: user.Username,
+                nickname: user.Nickname,
+                avatarUrl: user.AvatarUrl,
+                role: user.Role,
+                status: user.Status,
+                presence: user.Presence,
+            }}
+        >
+            <ProfileButton className="flex min-w-0 w-full cursor-pointer items-center gap-3 rounded-[2px] p-1.5 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
+                <img src={tether.url.replace('/tether', '') + '/' + user.AvatarUrl} alt="" className="size-7 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
+                <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{user.Username}</span>
+            </ProfileButton>
+        </ProfileCard>
     )
 }
 
@@ -130,11 +143,27 @@ export default function ChatSidebars() {
                         {channels?.map((channel: any) => <ChannelItem key={channel.ID} channel={channel} />)}
                         {channels?.length === 0 && <p className="px-3 py-2 text-xs leading-5 text-foreground-muted">Create a channel to start a conversation.</p>}
                     </div>
-                    <div className="flex flex-row items-center justify-between gap-3 p-2 bg-background-tertiary rounded-[2px] border border-background-tertiary">
-                        <div className="flex flex-row items-center gap-3">
-                            <img src={tether.url.replace('/tether', '') + '/' + userInfo?.AvatarUrl} alt={userInfo?.Username} className="size-8 shrink-0 rounded-[2px] bg-background-tertiary object-cover" />
-                            <p className="text-md font-medium text-foreground">{userInfo?.Username}</p>
-                        </div>
+                    <div className="flex flex-row items-center gap-1 rounded-[2px] border border-background-tertiary bg-background-tertiary p-1">
+                        {userInfo?.ID ? (
+                            <ProfileCard
+                                userId={userInfo.ID}
+                                preview={{
+                                    username: userInfo.Username,
+                                    nickname: userInfo.Nickname,
+                                    avatarUrl: userInfo.AvatarUrl,
+                                    role: userInfo.Role,
+                                    status: userInfo.Status,
+                                    presence: userInfo.Presence,
+                                    bio: userInfo.Bio,
+                                    createdAt: userInfo.CreatedAt,
+                                }}
+                            >
+                                <ProfileButton label={`View ${userInfo.Username}'s profile`} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[2px] px-1 py-1 text-left hover:bg-foreground-muted-hover focus-visible:outline-2 focus-visible:outline-brand-primary">
+                                    <img src={tether.url.replace('/tether', '') + '/' + userInfo.AvatarUrl} alt="" className="size-8 shrink-0 rounded-[2px] bg-background object-cover" />
+                                    <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{userInfo.Username}</span>
+                                </ProfileButton>
+                            </ProfileCard>
+                        ) : <div className="h-8 flex-1" />}
                         <button className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted hover:bg-foreground-muted-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary" onClick={() => {}}><GearIcon size={16} /></button>
                     </div>
                 </div>
