@@ -54,6 +54,7 @@ type Token struct {
 type Channel struct {
 	ID        string `gorm:"primaryKey"`
 	Name      string
+	Rank      string `gorm:"uniqueIndex;default:null"`
 	IsPrivate bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -143,7 +144,7 @@ func main() {
 	if err != nil {
 		panic("failed to load environment variables")
 	}
-	db, err := gorm.Open(sqlite.Open("tether.db"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("tether.db?_txlock=immediate&_busy_timeout=5000"), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -156,7 +157,12 @@ func main() {
 
 	engine.CreateTable(&User{})
 	engine.CreateTable(&Token{})
-	engine.CreateTable(&Channel{})
+	if err := engine.CreateTable(&Channel{}); err != nil {
+		panic(err)
+	}
+	if err := migrateChannelRanks(db); err != nil {
+		panic(err)
+	}
 	engine.CreateTable(&ChannelMember{})
 	engine.CreateTable(&Message{})
 	engine.CreateTable(&AttachmentMetadata{})
@@ -434,7 +440,7 @@ func main() {
 			Name:      name,
 			IsPrivate: isPrivate,
 		}
-		if err := ctx.DB.Create(channel).Error; err != nil {
+		if err := ctx.DB.Transaction(func(tx *gorm.DB) error { return appendChannel(tx, channel) }); err != nil {
 			return nil, errors.New("failed to create channel")
 		}
 		return map[string]any{
@@ -444,6 +450,22 @@ func main() {
 				"isPrivate": channel.IsPrivate,
 			},
 		}, nil
+	})
+
+	engine.RegisterMutation("reorderChannel", func(ctx *tether.MutationCtx) (any, error) {
+		admin, err := ctx.Auth.ExecuteGuard("isAdmin", map[string]any{})
+		if err != nil || admin != true {
+			return nil, errors.New("unauthorized")
+		}
+		channelID, ok := ctx.Params["channelID"].(string)
+		if !ok || channelID == "" {
+			return nil, errors.New("channelID is required")
+		}
+		beforeID, ok := ctx.Params["beforeID"].(string)
+		if !ok {
+			return nil, errors.New("beforeID is required (empty means end)")
+		}
+		return moveChannel(ctx.DB, channelID, beforeID)
 	})
 
 	engine.RegisterQuery("getChannels", func(ctx *tether.QueryCtx) (any, error) {
@@ -467,7 +489,7 @@ func main() {
 		}
 		ctx.TrackTable("channels")
 		channels := []Channel{}
-		if err := ctx.DB.Where("id IN (?)", ids).Find(&channels).Error; err != nil {
+		if err := ctx.DB.Where("id IN (?)", ids).Order("rank, id").Find(&channels).Error; err != nil {
 			return nil, errors.New("failed to get channels")
 		}
 		return channels, nil
@@ -873,7 +895,7 @@ func main() {
 		}
 		channel.Name = channelName
 		channel.IsPrivate = isPrivate
-		if err := ctx.DB.Save(channel).Error; err != nil {
+		if err := ctx.DB.Model(channel).Select("Name", "IsPrivate").Updates(channel).Error; err != nil {
 			return nil, errors.New("failed to update channel")
 		}
 		return channel, nil

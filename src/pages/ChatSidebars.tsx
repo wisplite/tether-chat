@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate, useParams } from 'react-router'
 import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import ChatModal from './ChatModal'
+import ChannelList from './ChannelList'
 import { ProfileButton, ProfileCard } from './ProfileCard'
 
 const CHANNEL_MIN = 144
@@ -188,6 +189,7 @@ function CreateChannel({ onClose }: { onClose: () => void }) {
 
 function ChannelItem({ channel }: { channel: any }) {
     const { channelId } = useParams()
+    const { data: userInfo } = useQuery('getUserInfo')
     const { prefetch } = useTether()
     const [channelName, setChannelName] = useState(channel.Name)
     const [isPrivate, setIsPrivate] = useState(channel.IsPrivate)
@@ -227,7 +229,7 @@ function ChannelItem({ channel }: { channel: any }) {
                 {channel.IsPrivate ? <LockSimpleIcon size={16} className="shrink-0 text-foreground-muted" /> : <HashIcon size={16} className={`shrink-0 ${channelId === channel.ID ? 'text-accent' : 'text-foreground-muted'}`} />}
                 <span className="truncate">{channel.Name}</span>
             </Link>
-            <button aria-label={`Settings for ${channel.Name}`} className="absolute right-1 top-0.5 flex size-7 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100" onClick={() => setChannelSettingsModalOpen(true)}><GearIcon size={16} /></button>
+            {userInfo?.Role === 'admin' && <button aria-label={`Settings for ${channel.Name}`} className={`absolute right-1 top-0.5 ${channelId === channel.ID ? 'flex' : 'hidden sm:flex'} size-7 cursor-pointer items-center justify-center rounded-[2px] text-foreground-muted transition-colors hover:bg-background-tertiary hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand-primary sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100`} onClick={() => setChannelSettingsModalOpen(true)}><GearIcon size={16} /></button>}
             <ChatModal title="Channel Settings" open={channelSettingsModalOpen} onClose={() => setChannelSettingsModalOpen(false)} children={
                 <div className="flex w-full flex-col items-start gap-4">
                     <p className="text-[13px] font-medium text-foreground">Channel Name</p>
@@ -359,10 +361,7 @@ export default function ChatSidebars() {
                     {userInfo?.Role !== 'admin' && <div className="size-7 shrink-0" />}
                 </div>
                 <div className={`min-h-0 flex-1 flex flex-col gap-0.5 justify-between overflow-y-auto px-2 pb-2 ${channelListOpen ? '' : 'hidden'}`}>
-                    <div className="flex flex-col gap-0.5">
-                        {channels?.map((channel: any) => <ChannelItem key={channel.ID} channel={channel} />)}
-                        {channels?.length === 0 && <p className="px-3 py-2 text-xs leading-5 text-foreground-muted">Create a channel to start a conversation.</p>}
-                    </div>
+                    <ChannelList channels={channels ?? []} canReorder={userInfo?.Role === 'admin'} renderChannel={channel => <ChannelItem channel={channel} />} />
                     <div className="flex flex-row items-center gap-1 rounded-[2px] border border-background-tertiary bg-background-tertiary p-1">
                         {userInfo?.ID ? (
                             <ProfileCard

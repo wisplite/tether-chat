@@ -14,7 +14,7 @@ const accents: { value: Accent, label: string, color: string }[] = [
 ]
 
 export default function Appearance() {
-    const { theme, accent, notice, update } = useAppearance()
+    const { theme, accent, update } = useAppearance()
     return (
         <div className="settings-page">
             <header className="settings-heading">
