@@ -4,6 +4,7 @@ import { useParams } from 'react-router'
 import { useInView } from 'react-intersection-observer'
 import { PlusIcon, FileIcon, TrashIcon, PencilIcon, DownloadIcon, HashIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { ProfileButton, ProfileCard } from './ProfileCard'
+import ImageAttachment from './ImageAttachment'
 
 function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -339,7 +340,7 @@ function AttachmentItem({ attachment: { url, filename }, onMouseEnter, onMouseLe
   }, [url])
   const src = tether.url.replace('/tether', '') + url
   if (contentType?.startsWith('image/')) {
-    return <img src={src} alt={filename} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="block h-auto max-h-64 max-w-full object-contain rounded-[2px] border border-background-tertiary mb-1" />
+    return <ImageAttachment src={src} filename={filename} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
   } else if (contentType?.startsWith('video/')) {
     return <div className="w-fit max-w-full" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <video src={src} className="block h-auto w-auto max-w-full sm:max-w-[400px] max-h-96 rounded-[2px] bg-background mb-1" controls />
