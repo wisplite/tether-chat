@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-import { ArrowLeftIcon, PaletteIcon, UserIcon, type Icon } from '@phosphor-icons/react'
+import { ArrowLeftIcon, PaletteIcon, SignOutIcon, UserIcon, type Icon } from '@phosphor-icons/react'
+import { useTether } from '@tetherdb/react'
 
 type Page = {
     name: string
@@ -31,6 +32,13 @@ function PageItem({ page }: { page: Page }) {
 
 function Settings() {
     const navigate = useNavigate()
+    const { logout } = useTether()
+
+    const handleLogout = () => {
+        localStorage.removeItem('token')
+        logout()
+        navigate('/')
+    }
     return (
         <div className="flex h-dvh w-full flex-col overflow-hidden sm:flex-row bg-background">
             <aside aria-label="Settings" className="flex shrink-0 flex-col border-b sm:h-full sm:w-[200px] sm:border-b-0 sm:border-r border-background-tertiary bg-background-secondary">
@@ -41,10 +49,16 @@ function Settings() {
                             <PageItem key={page.path} page={page} />
                         ))}
                     </div>
-                    <button onClick={() => navigate('/chat')} className="rounded-md bg-background-tertiary p-2 text-sm text-foreground hover:bg-background-tertiary/80 cursor-pointer flex flex-row gap-1 items-center justify-center">
-                        <ArrowLeftIcon size={16} className="shrink-0" />
-                        <span className="truncate">Back to Chat</span>
-                    </button>
+                    <div className="flex flex-col gap-1">
+                        <button onClick={() => handleLogout()} className="rounded-md bg-error p-2 text-sm text-white hover:bg-error/80 cursor-pointer flex flex-row gap-1 items-center justify-center">
+                            <SignOutIcon size={16} className="shrink-0 text-white" />
+                            <span className="truncate">Log Out</span>
+                        </button>
+                        <button onClick={() => navigate('/chat')} className="rounded-md bg-background-tertiary p-2 text-sm text-foreground hover:bg-background-tertiary/80 cursor-pointer flex flex-row gap-1 items-center justify-center">
+                            <ArrowLeftIcon size={16} className="shrink-0" />
+                            <span className="truncate">Back to Chat</span>
+                        </button>
+                    </div>
                 </div>
             </aside>
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
