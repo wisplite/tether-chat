@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useTether } from '@tetherdb/react'
-import { CameraIcon } from '@phosphor-icons/react'
+import { CameraIcon, CheckCircleIcon, CircleNotchIcon } from '@phosphor-icons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ProfileCardView, type ProfilePreview } from '../ProfileCard'
 
@@ -22,20 +22,25 @@ function errorMessage(error: unknown) {
     return 'Something went wrong'
 }
 
-function putFile(url: string, file: File) {
+function putFile(url: string, file: File, onProgress: (percent: number) => void) {
     return new Promise<boolean>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', url)
         xhr.setRequestHeader('Content-Type', file.type)
         xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300)
-        xhr.onerror = () => reject(new Error('upload failed'))
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100))
+        }
+        xhr.timeout = 120000
+        xhr.ontimeout = () => reject(new Error('Photo upload timed out. Please try again.'))
+        xhr.onerror = () => reject(new Error('Photo upload failed. Please try again.'))
         xhr.send(file)
     })
 }
 
 function Profile() {
     const tether = useTether()
-    const { data: user } = useQuery('getUserInfo')
+    const { data: user, error: loadError } = useQuery('getUserInfo')
     const [nickname, setNickname] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
     const [bio, setBio] = useState<string | null>(null)
@@ -43,12 +48,17 @@ function Profile() {
     const [photoUrl, setPhotoUrl] = useState<string | null>(null)
     const [error, setError] = useState('')
     const [saving, setSaving] = useState(false)
+    const [feedback, setFeedback] = useState('')
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+    const [saved, setSaved] = useState<{ nickname: string, status: string, bio: string } | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const seenUserId = useRef<string | undefined>(undefined)
     const avatarBeforeUpload = useRef('')
     const shownNickname = nickname ?? user?.Nickname ?? ''
     const shownBio = bio ?? user?.Bio ?? ''
     const shownStatus = status ?? user?.Status ?? ''
+    const baseline = saved ?? { nickname: user?.Nickname ?? '', status: user?.Status ?? '', bio: user?.Bio ?? '' }
+    const dirty = !!photo || shownNickname !== baseline.nickname || shownStatus !== baseline.status || shownBio !== baseline.bio
     const { mutate: updateProfile } = useMutation('updateProfile')
     const { mutate: uploadAvatar } = useMutation('uploadAvatar')
     const previewAvatar = photoUrl ?? user?.AvatarUrl ?? ''
@@ -65,11 +75,9 @@ function Profile() {
     const replacePhoto = (file: File | null) => {
         const nextUrl = file ? URL.createObjectURL(file) : null
         setPhoto(file)
-        setPhotoUrl((current) => {
-            if (current && current !== nextUrl) URL.revokeObjectURL(current)
-            return nextUrl
-        })
+        setPhotoUrl(nextUrl)
     }
+    useEffect(() => () => { if (photoUrl) URL.revokeObjectURL(photoUrl) }, [photoUrl])
     useEffect(() => {
         const id = user?.ID as string | undefined
         if (seenUserId.current && seenUserId.current !== id) {
@@ -78,6 +86,8 @@ function Profile() {
             setStatus(null)
             replacePhoto(null)
             setError('')
+            setSaved(null)
+            setFeedback('')
         }
         seenUserId.current = id
     }, [user?.ID])
@@ -99,6 +109,7 @@ function Profile() {
             return
         }
         setError('')
+        setFeedback('')
         avatarBeforeUpload.current = user?.AvatarUrl ?? ''
         replacePhoto(file)
     }
@@ -106,6 +117,7 @@ function Profile() {
         replacePhoto(null)
     }
     const handleSave = async () => {
+        if (saving || !user?.ID || !dirty) return
         const nextNickname = shownNickname.trim()
         if (!nextNickname) {
             setError('Nickname is required.')
@@ -113,6 +125,8 @@ function Profile() {
         }
         setSaving(true)
         setError('')
+        setFeedback(photo ? 'Preparing photo upload…' : 'Saving profile…')
+        setUploadProgress(null)
         try {
             let avatarFileID = ''
             if (photo) {
@@ -121,13 +135,17 @@ function Profile() {
                     setError(errorMessage(uploadData.error))
                     return
                 }
-                const uploaded = await putFile(tether.url.replace(/\/tether\/?$/, '') + uploadData.uploadURL, photo)
+                setFeedback('Uploading photo…')
+                setUploadProgress(0)
+                const uploaded = await putFile(tether.url.replace(/\/tether\/?$/, '') + uploadData.uploadURL, photo, setUploadProgress)
                 if (!uploaded) {
                     setError('Could not upload photo.')
                     return
                 }
                 avatarFileID = uploadData.fileID
             }
+            setUploadProgress(null)
+            setFeedback('Saving profile…')
             const result = await updateProfile({
                 nickname: nextNickname,
                 status: shownStatus,
@@ -142,23 +160,37 @@ function Profile() {
             setStatus(shownStatus)
             setBio(shownBio)
             setPhoto(null)
+            setSaved({ nickname: nextNickname, status: shownStatus, bio: shownBio })
+            setFeedback('Profile saved successfully.')
         } catch (err) {
             setError(errorMessage(err))
         } finally {
             setSaving(false)
+            setUploadProgress(null)
         }
     }
     const handleCancel = () => {
-        setNickname(user?.Nickname ?? null)
-        setBio(user?.Bio ?? null)
-        setStatus(user?.Status ?? null)
+        setNickname(baseline.nickname)
+        setBio(baseline.bio)
+        setStatus(baseline.status)
         clearPhoto()
         setError('')
+        setFeedback('Changes discarded.')
     }
+    if (!user?.ID) return (
+        <div className="settings-page">
+            <header className="settings-heading"><h1>Profile</h1><p>Manage how you appear to others in Tether.</p></header>
+            <div className="settings-panel" role={loadError ? 'alert' : 'status'}>
+                {loadError ? <p className="text-error">Could not load your profile. {errorMessage(loadError)}</p> : <p className="flex items-center gap-2 text-foreground-muted"><CircleNotchIcon className="animate-spin motion-reduce:animate-none" size={18} />Loading your profile…</p>}
+            </div>
+        </div>
+    )
     return (
-        <div className="flex h-dvh w-full bg-background">
-            <div className="flex w-80 shrink-0 flex-col gap-3 overflow-y-auto p-4">
-                <h1 className="text-2xl font-bold">Profile</h1>
+        <div className="settings-page">
+            <header className="settings-heading"><h1>Profile</h1><p>Manage how you appear to others in Tether.</p></header>
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_312px]">
+            <form onSubmit={(event) => { event.preventDefault(); void handleSave() }} aria-busy={saving} className="settings-panel flex min-w-0 flex-col gap-5">
+                <div><h2 className="text-base font-semibold">Your profile</h2><p className="mt-1 text-foreground-muted">Give your conversations a personal touch.</p></div>
                 <div className="flex items-center gap-3">
                     <button type="button" aria-label="Upload profile photo" disabled={saving} onClick={() => fileInputRef.current?.click()} className="group relative size-16 shrink-0 cursor-pointer overflow-hidden rounded-[2px] border border-background-tertiary bg-background-tertiary focus-visible:outline-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50">
                         {avatarSrc ? (
@@ -193,26 +225,35 @@ function Profile() {
                     }}
                 />
                 <div className="flex flex-col gap-2">
-                    <label htmlFor="nickname">Nickname</label>
-                    <input id="nickname" type="text" required placeholder="Nickname" value={shownNickname} disabled={saving} onChange={(e) => { setNickname(e.target.value); setError('') }} aria-invalid={error === 'Nickname is required.'} className="rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
+                    <label className="font-medium" htmlFor="nickname">Nickname <span className="text-foreground-muted">(required)</span></label>
+                    <input id="nickname" type="text" required placeholder="Nickname" value={shownNickname} disabled={saving} onChange={(e) => { setNickname(e.target.value); setError('') }} aria-invalid={error === 'Nickname is required.'} aria-describedby={error === 'Nickname is required.' ? 'profile-error' : undefined} className="rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
                 </div>
                 <div className="flex flex-col gap-2">
-                    <label htmlFor="status">Status</label>
-                    <input id="status" type="text" placeholder="Status" value={shownStatus} disabled={saving} onChange={(e) => setStatus(e.target.value)} className="rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
+                    <label className="font-medium" htmlFor="status">Status</label>
+                    <input id="status" type="text" placeholder="What are you up to?" value={shownStatus} disabled={saving} onChange={(e) => setStatus(e.target.value)} className="rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
                 </div>
                 <div className="flex flex-col gap-2">
-                    <label htmlFor="bio">Bio</label>
-                    <textarea id="bio" rows={4} placeholder="Bio" value={shownBio} disabled={saving} onChange={(e) => setBio(e.target.value)} className="resize-none rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
+                    <label className="font-medium" htmlFor="bio">Bio</label>
+                    <textarea id="bio" rows={4} placeholder="A little about yourself…" value={shownBio} disabled={saving} onChange={(e) => setBio(e.target.value)} className="resize-none rounded-md border border-background-tertiary bg-background-secondary p-2 text-sm text-foreground disabled:opacity-50" />
                 </div>
-                {error && <p role="alert" className="text-sm text-error">{error}</p>}
-                <div className="flex flex-row gap-2">
-                    <button type="button" onClick={handleCancel} disabled={saving} className="flex-1 cursor-pointer rounded-md bg-background-tertiary p-2 text-sm text-foreground hover:bg-background-tertiary/80 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
-                    <button type="button" onClick={handleSave} disabled={saving || !user?.ID} className="flex-1 cursor-pointer rounded-md bg-accent p-2 text-sm text-background hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
+                <div className="border-t border-background-tertiary pt-4">
+                    {error && <p id="profile-error" role="alert" className="mb-3 text-sm text-error">{error}</p>}
+                    <p role="status" aria-live="polite" className="mb-3 flex min-h-5 items-center gap-2 text-foreground-muted">
+                        {saving ? <CircleNotchIcon size={16} className="shrink-0 animate-spin motion-reduce:animate-none" /> : !dirty && feedback === 'Profile saved successfully.' ? <CheckCircleIcon size={16} className="shrink-0 text-success" /> : null}
+                        {saving ? feedback : dirty ? 'You have unsaved changes.' : error ? 'Your changes haven’t been saved.' : feedback || 'Your profile is up to date.'}
+                    </p>
+                    {uploadProgress !== null && <progress className="mb-3 h-1.5 w-full accent-accent" value={uploadProgress} max={100} aria-label={`Uploading photo, ${uploadProgress}%`} />}
+                    <div className="flex justify-end gap-2">
+                        <button type="button" onClick={handleCancel} disabled={saving || !dirty} className="cursor-pointer rounded-md border border-background-tertiary px-3 py-2 font-medium hover:bg-foreground-muted-hover disabled:cursor-not-allowed disabled:opacity-50">Discard changes</button>
+                        <button type="submit" disabled={saving || !dirty} className="cursor-pointer rounded-md bg-accent px-4 py-2 font-medium text-background hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>
+                    </div>
                 </div>
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
-                <h2 className="text-2xl font-bold">Preview</h2>
-                <ProfileCardView profile={preview} />
+            </form>
+            <aside className="settings-panel flex min-w-0 flex-col gap-3 lg:sticky lg:top-0" aria-label="Profile preview">
+                <div className="flex items-center justify-between"><h2 className="text-base font-semibold">Live preview</h2><span className="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success">Live</span></div>
+                <p className="text-foreground-muted">This is how others will see your profile.</p>
+                <ProfileCardView profile={preview} className="!w-full !max-h-none !shadow-none" />
+            </aside>
             </div>
         </div>
     )

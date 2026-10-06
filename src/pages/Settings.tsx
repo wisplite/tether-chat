@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-import { ArrowLeftIcon, UserIcon, type Icon } from '@phosphor-icons/react'
+import { ArrowLeftIcon, PaletteIcon, UserIcon, type Icon } from '@phosphor-icons/react'
 
 type Page = {
     name: string
@@ -12,7 +12,8 @@ const pages: Page[] = [
         name: 'Profile',
         path: '/settings/profile',
         icon: UserIcon
-    }
+    },
+    { name: 'Appearance', path: '/settings/appearance', icon: PaletteIcon }
 ]
 
 function PageItem({ page }: { page: Page }) {
@@ -31,10 +32,11 @@ function PageItem({ page }: { page: Page }) {
 function Settings() {
     const navigate = useNavigate()
     return (
-        <div className="flex h-dvh w-full overflow-hidden bg-background">
-            <aside aria-label="Settings" className="flex h-full w-36 shrink-0 flex-col border-r border-background-tertiary bg-background-secondary sm:w-[200px]">
+        <div className="flex h-dvh w-full flex-col overflow-hidden sm:flex-row bg-background">
+            <aside aria-label="Settings" className="flex shrink-0 flex-col border-b sm:h-full sm:w-[200px] sm:border-b-0 sm:border-r border-background-tertiary bg-background-secondary">
+                <div className="px-4 pt-5 pb-3 text-lg font-bold">Settings</div>
                 <div className="min-h-0 flex-1 flex flex-col gap-0.5 justify-between overflow-y-auto p-2">
-                    <div className="flex flex-col gap-0.5">
+                    <div className="flex gap-1 sm:flex-col">
                         {pages.map((page) => (
                             <PageItem key={page.path} page={page} />
                         ))}
@@ -45,8 +47,8 @@ function Settings() {
                     </button>
                 </div>
             </aside>
-            <main className="flex h-full w-full flex-1 items-center justify-center overflow-y-auto bg-background">
-                <div className="w-full">
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
+                <div className="mx-auto w-full max-w-[1100px] p-4 sm:p-6 lg:p-10">
                     <Outlet />
                 </div>
             </main>

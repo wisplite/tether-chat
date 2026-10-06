@@ -1,4 +1,3 @@
-import AccountLayout from './AccountLayout'
 import { useState, useEffect } from 'react'
 import { useMutation, useTether } from '@tetherdb/react'
 import { Link, useNavigate } from 'react-router'

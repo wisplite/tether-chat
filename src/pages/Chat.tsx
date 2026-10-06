@@ -2,7 +2,7 @@ import { useMutation, usePaginatedQuery, useQuery, useTether } from '@tetherdb/r
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useInView } from 'react-intersection-observer'
-import { PlusIcon, FileIcon, TrashIcon, PencilIcon, DownloadIcon, PaperPlaneTiltIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
+import { PlusIcon, FileIcon, TrashIcon, PencilIcon, DownloadIcon, HashIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { ProfileButton, ProfileCard } from './ProfileCard'
 
 function formatBytes(bytes: number) {

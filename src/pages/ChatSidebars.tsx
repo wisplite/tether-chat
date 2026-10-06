@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useTether } from '@tetherdb/react'
 import { Link, Outlet, useNavigate, useParams } from 'react-router'
-import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, ChatCircleIcon, LockSimpleIcon } from '@phosphor-icons/react'
+import { CaretRightIcon, PlusIcon, GearIcon, HashIcon, LockSimpleIcon } from '@phosphor-icons/react'
 import { useState } from 'react'
 import ChatModal from './ChatModal'
 import { ProfileButton, ProfileCard } from './ProfileCard'

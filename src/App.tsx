@@ -1,12 +1,6 @@
-import { Authenticated, Unauthenticated, useQuery } from '@tetherdb/react'
+import { Authenticated, Unauthenticated } from '@tetherdb/react'
 import { Link, useNavigate } from 'react-router'
-import AccountLayout from './pages/AccountLayout'
 import { useEffect } from 'react'
-
-function UserInfo() {
-  const { data: userInfo } = useQuery('getUserInfo')
-  return <p className="text-[13px] text-foreground-muted">Welcome, {userInfo?.Username}</p>
-}
 
 function RedirectToChat() {
   const navigate = useNavigate()
